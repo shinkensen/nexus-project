@@ -237,7 +237,7 @@ export default function Game({
       prevMotionZ = currentMotion.z;
     }
 
-    function playerShieldApplier(cameraX: number, cameraY: number) {
+    function spriteAboveApplier(cameraX: number, cameraY: number) {
       if (!clientShield) return;
 
       ctx.drawImage(
@@ -415,7 +415,7 @@ export default function Game({
         PLAYER_SIZE
       );
 
-      playerShieldApplier(cameraX, cameraY);
+      spriteAboveApplier(cameraX, cameraY);
 
       // Shield
       if (keys[" "]) {
