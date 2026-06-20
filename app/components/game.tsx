@@ -2,15 +2,38 @@
 
 import { useEffect, useRef } from "react";
 import { supabase } from "../backend/supabase";
-
-export const WORLD_WIDTH = 3000;
-export const WORLD_HEIGHT = 3000;
+const WORLD_WIDTH = 3000;
+const WORLD_HEIGHT = 3000;
 
 export const PLAYER_SIZE = 100;
-export const PLAYER_SPEED = 1000; // pixels/sec
+export const PLAYER_SPEED = 1000; 
 
-export default function Game({ playerName }: { playerName: string }) {
+const ATTACK_DURATION = 0.15;
+const COOLDOWN_TIME = 0.5; 
+
+const GAMMA_THRESHOLD = 5;
+const Y_THRESHOLD = 6;
+
+const BROADCAST_INTERVAL_MS = 100;
+
+type Orientation = { alpha: number; beta: number; gamma: number };
+type Motion = { x: number; y: number; z: number };
+
+export default function Game({
+  playerName,
+  orientation,
+  motion,
+}: {
+  playerName: string;
+  orientation?: Orientation;
+  motion?: Motion;
+}) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  const debugRef = useRef({ orientation, motion });
+  useEffect(() => {
+    debugRef.current = { orientation, motion };
+  }, [orientation, motion]);
 
   let health = 100;
   let shark = true;
@@ -18,8 +41,12 @@ export default function Game({ playerName }: { playerName: string }) {
   useEffect(() => {
     const canvas = canvasRef.current!;
     const ctx = canvas.getContext("2d")!;
-    const playerImage = new Image();
-    playerImage.src = "/assets/sprites/cat-removebg-preview.png";
+
+    const catImage = new Image();
+    catImage.src = "/assets/sprites/cat-removebg-preview.png";
+
+    const sharkImage = new Image();
+    sharkImage.src = "/assets/sprites/shark-removebg-preview.png";
 
     let width = window.innerWidth;
     let height = window.innerHeight;
@@ -51,6 +78,11 @@ export default function Game({ playerName }: { playerName: string }) {
       y: WORLD_HEIGHT / 2,
     };
 
+    const selfId =
+      typeof crypto !== "undefined" && crypto.randomUUID
+        ? crypto.randomUUID()
+        : Math.random().toString(36).slice(2);
+
     const players: Record<string, { x: number, y: number, dx: number, dy: number, lastUpdate: number }> = {};
 
     const channel = supabase.channel('game_room')
@@ -59,6 +91,8 @@ export default function Game({ playerName }: { playerName: string }) {
         { event: 'joystick' },
         (payload) => {
           const { uuid, dx, dy } = payload.payload;
+          if (uuid === selfId) return;
+
           if (!players[uuid]) {
             players[uuid] = { x: WORLD_WIDTH / 2, y: WORLD_HEIGHT / 2, dx: 0, dy: 0, lastUpdate: performance.now() };
           }
@@ -111,31 +145,32 @@ export default function Game({ playerName }: { playerName: string }) {
       touchInput.pointerId = -1;
     }
 
+    function attackPointerDown(e: PointerEvent) {
+      if (e.button === 0 && cooldown <= 0) {
+        attackTime = ATTACK_DURATION;
+        cooldown = COOLDOWN_TIME;
+      }
+    }
+
+    function updatePointerPosition(e: PointerEvent) {
+      const rect = canvas.getBoundingClientRect();
+      pointer.x = e.clientX - rect.left;
+      pointer.y = e.clientY - rect.top;
+    }
+
     window.addEventListener("keydown", keyDown);
     window.addEventListener("keyup", keyUp);
     canvas.addEventListener("pointerdown", startTouchInput);
     canvas.addEventListener("pointermove", updateTouchInput);
     canvas.addEventListener("pointerup", endTouchInput);
     canvas.addEventListener("pointercancel", endTouchInput);
-
-    window.addEventListener("pointerdown", (e) => {
-      if (e.button === 0 && cooldown <= 0) {
-        attackTime = ATTACK_DURATION;
-        cooldown = COOLDOWN_TIME;
-      }
-    });
+    window.addEventListener("pointerdown", attackPointerDown);
+    canvas.addEventListener("pointermove", updatePointerPosition);
 
     const pointer = {
       x: 0,
       y: 0,
     };
-
-    canvas.addEventListener("pointermove", (e) => {
-      const rect = canvas.getBoundingClientRect();
-
-      pointer.x = e.clientX - rect.left;
-      pointer.y = e.clientY - rect.top;
-    });
 
     function takeDamage(amount: number) {
       health -= amount;
@@ -143,14 +178,42 @@ export default function Game({ playerName }: { playerName: string }) {
     }
 
     let last = performance.now();
+    let lastBroadcast = 0;
     const maxTouchDistance = 90;
     const touchDeadzone = 8;
 
     let attackTime = 0;
     let cooldown = 0;
 
-    const ATTACK_DURATION = 0.15; // seconds
-    const COOLDOWN_TIME = 0.5;    // seconds
+    let prevGamma: number | null = null;
+    let prevMotionX: number | null = null;
+    let prevMotionY: number | null = null;
+    let prevMotionZ: number | null = null;
+
+    function gyroAndAccelHandler() {
+      const currentOrientation = debugRef.current.orientation;
+      const currentMotion = debugRef.current.motion;
+
+      if (!currentOrientation || !currentMotion) return;
+
+      const { gamma } = currentOrientation;
+      const { x, y, z } = currentMotion;
+
+      if (prevGamma !== null && prevMotionY !== null) {
+        const gammaDelta = Math.abs(gamma - prevGamma);
+        const accelYDelta = Math.abs(y - prevMotionY);
+
+        if (
+          gammaDelta > GAMMA_THRESHOLD && accelYDelta > Y_THRESHOLD) {
+          shark = !shark;
+        }
+      }
+
+      prevGamma = gamma;
+      prevMotionX = x;
+      prevMotionY = y;
+      prevMotionZ = z;
+    }
 
     function loop(now: number) {
       const dt = (now - last) / 1000;
@@ -186,7 +249,6 @@ export default function Game({ playerName }: { playerName: string }) {
         }
       }
 
-      // Normalize diagonal movement
       if (dx !== 0 || dy !== 0) {
         const len = Math.hypot(dx, dy);
         dx /= len;
@@ -205,6 +267,16 @@ export default function Game({ playerName }: { playerName: string }) {
         PLAYER_SIZE / 2,
         Math.min(WORLD_HEIGHT - PLAYER_SIZE / 2, localPlayer.y)
       );
+
+      // Tell other clients where we're headed (throttled)
+      if (now - lastBroadcast > BROADCAST_INTERVAL_MS) {
+        lastBroadcast = now;
+        channel.send({
+          type: "broadcast",
+          event: "joystick",
+          payload: { uuid: selfId, dx, dy },
+        });
+      }
 
       // Update remote players
       for (const uuid in players) {
@@ -231,9 +303,6 @@ export default function Game({ playerName }: { playerName: string }) {
         0,
         Math.min(WORLD_HEIGHT - height, localPlayer.y - height / 2)
       );
-
-      const pointerWorldX = pointer.x + cameraX;
-      const pointerWorldY = pointer.y + cameraY;
 
       // Background
       ctx.fillStyle = "#181818";
@@ -265,63 +334,75 @@ export default function Game({ playerName }: { playerName: string }) {
       // World border
       ctx.strokeStyle = "#ffffff";
       ctx.lineWidth = 4;
-      ctx.strokeRect(
-        -cameraX,
-        -cameraY,
-        WORLD_WIDTH,
-        WORLD_HEIGHT
-      );
+      ctx.strokeRect(-cameraX, -cameraY, WORLD_WIDTH, WORLD_HEIGHT);
 
-      // display playername under neath image
+      // Remote players (drawn before the local player/UI so the
+      // local player's name/health bar stay on top)
+      for (const uuid in players) {
+        const p = players[uuid];
+        ctx.drawImage(
+          catImage,
+          p.x - PLAYER_SIZE / 2 - cameraX,
+          p.y - PLAYER_SIZE / 2 - cameraY,
+          PLAYER_SIZE,
+          PLAYER_SIZE
+        );
+      }
+
+      // Player name
       ctx.fillStyle = "#ffffff";
       ctx.font = "16px Arial";
       ctx.textAlign = "center";
-      ctx.fillText(playerName, player.x - cameraX, player.y - PLAYER_SIZE / 2 - cameraY - 10);
+      ctx.fillText(
+        playerName,
+        localPlayer.x - cameraX,
+        localPlayer.y - PLAYER_SIZE / 2 - cameraY - 10
+      );
 
-      // draw health and shield bar BELOW player image, and make them filled up based on a variable
-
+      // Health bar
       ctx.fillStyle = "#ff0000";
-      ctx.fillRect(player.x - cameraX - 50, player.y + PLAYER_SIZE / 2 - cameraY + 10, health, 10);
+      ctx.fillRect(
+        localPlayer.x - cameraX - 50,
+        localPlayer.y + PLAYER_SIZE / 2 - cameraY + 10,
+        health,
+        10
+      );
 
-      const playerImage = new Image();
-      // playerImage.src = "/assets/sprites/cat-removebg-preview.png";
-      // depends based on shark boolean
-      playerImage.src = shark ? "/assets/sprites/cat-removebg-preview.png"
-        : "/assets/sprites/shark-removebg-preview.png";
-      playerImage.width = PLAYER_SIZE;
-      playerImage.height = PLAYER_SIZE;
+
+      gyroAndAccelHandler();
+
+      const currentSprite = shark ? catImage : sharkImage;
 
       ctx.drawImage(
-        playerImage,
-        player.x - PLAYER_SIZE / 2 - cameraX,
-        player.y - PLAYER_SIZE / 2 - cameraY,
+        currentSprite,
+        localPlayer.x - PLAYER_SIZE / 2 - cameraX,
+        localPlayer.y - PLAYER_SIZE / 2 - cameraY,
         PLAYER_SIZE,
         PLAYER_SIZE
       );
 
+      // Shield
       if (keys[" "]) {
-        // show shield (rectangle)
-
         ctx.fillStyle = "rgba(0, 255, 255, 0.5)";
         ctx.fillRect(
-          player.x - cameraX - PLAYER_SIZE / 2 - 10,
-          player.y - cameraY - PLAYER_SIZE / 2 - 10,
+          localPlayer.x - cameraX - PLAYER_SIZE / 2 - 10,
+          localPlayer.y - cameraY - PLAYER_SIZE / 2 - 10,
           PLAYER_SIZE + 20,
           PLAYER_SIZE + 20
         );
       }
 
+      // Attack swing
       if (attackTime > 0) {
-        const screenPlayerX = player.x - cameraX;
-        const screenPlayerY = player.y - cameraY;
+        const screenPlayerX = localPlayer.x - cameraX;
+        const screenPlayerY = localPlayer.y - cameraY;
 
-        const dx = pointer.x - screenPlayerX;
-        const dy = pointer.y - screenPlayerY;
+        const attackDx = pointer.x - screenPlayerX;
+        const attackDy = pointer.y - screenPlayerY;
 
-        const length = Math.hypot(dx, dy);
-
-        const dirX = dx / length;
-        const dirY = dy / length;
+        const length = Math.hypot(attackDx, attackDy);
+        const dirX = attackDx / length;
+        const dirY = attackDy / length;
 
         const attackLength = 300;
 
@@ -337,7 +418,6 @@ export default function Game({ playerName }: { playerName: string }) {
         ctx.stroke();
       }
 
-
       requestAnimationFrame(loop);
     }
 
@@ -351,12 +431,16 @@ export default function Game({ playerName }: { playerName: string }) {
       canvas.removeEventListener("pointermove", updateTouchInput);
       canvas.removeEventListener("pointerup", endTouchInput);
       canvas.removeEventListener("pointercancel", endTouchInput);
+      window.removeEventListener("pointerdown", attackPointerDown);
+      canvas.removeEventListener("pointermove", updatePointerPosition);
+      supabase.removeChannel(channel);
     };
   }, []);
 
   return (
     <canvas
       ref={canvasRef}
+      onContextMenu={(e) => e.preventDefault()}
       style={{
         width: "100vw",
         height: "100vh",
@@ -365,6 +449,7 @@ export default function Game({ playerName }: { playerName: string }) {
         WebkitUserSelect: "none",
         touchAction: "none",
         WebkitTouchCallout: "none",
+        WebkitTapHighlightColor: "transparent",
       }}
     />
   );
