@@ -1,16 +1,40 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { supabase } from "../backend/supabase";
 
-export const WORLD_WIDTH = 3000;
-export const WORLD_HEIGHT = 3000;
+const WORLD_WIDTH = 3000;
+const WORLD_HEIGHT = 3000;
 
 export const PLAYER_SIZE = 100;
 export const PLAYER_SPEED = 1000; // pixels/sec
 
-export default function Game({ playerName }: { playerName: string }) {
+const ATTACK_DURATION = 0.15; // seconds
+const COOLDOWN_TIME = 0.5; // seconds
+
+// Thresholds for the shake-to-swap-sprite gesture
+const GAMMA_DELTA_THRESHOLD = 5;
+const ACCEL_Y_DELTA_THRESHOLD = 6;
+
+type Orientation = { alpha: number; beta: number; gamma: number };
+type Motion = { x: number; y: number; z: number };
+
+export default function Game({
+  playerName,
+  orientation,
+  motion,
+}: {
+  playerName: string;
+  orientation?: Orientation;
+  motion?: Motion;
+}) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  // keep latest orientation/motion available inside the imperative loop,
+  // since the loop closure is created once with an empty effect dep array
+  const debugRef = useRef({ orientation, motion });
+  useEffect(() => {
+    debugRef.current = { orientation, motion };
+  }, [orientation, motion]);
 
   let health = 100;
   let shark = true;
@@ -18,8 +42,13 @@ export default function Game({ playerName }: { playerName: string }) {
   useEffect(() => {
     const canvas = canvasRef.current!;
     const ctx = canvas.getContext("2d")!;
-    const playerImage = new Image();
-    playerImage.src = "/assets/sprites/cat-removebg-preview.png";
+
+    // Preload sprites once instead of constructing a new Image every frame
+    const catImage = new Image();
+    catImage.src = "/assets/sprites/cat-removebg-preview.png";
+
+    const sharkImage = new Image();
+    sharkImage.src = "/assets/sprites/shark-removebg-preview.png";
 
     let width = window.innerWidth;
     let height = window.innerHeight;
@@ -111,31 +140,32 @@ export default function Game({ playerName }: { playerName: string }) {
       touchInput.pointerId = -1;
     }
 
+    function attackPointerDown(e: PointerEvent) {
+      if (e.button === 0 && cooldown <= 0) {
+        attackTime = ATTACK_DURATION;
+        cooldown = COOLDOWN_TIME;
+      }
+    }
+
+    function updatePointerPosition(e: PointerEvent) {
+      const rect = canvas.getBoundingClientRect();
+      pointer.x = e.clientX - rect.left;
+      pointer.y = e.clientY - rect.top;
+    }
+
     window.addEventListener("keydown", keyDown);
     window.addEventListener("keyup", keyUp);
     canvas.addEventListener("pointerdown", startTouchInput);
     canvas.addEventListener("pointermove", updateTouchInput);
     canvas.addEventListener("pointerup", endTouchInput);
     canvas.addEventListener("pointercancel", endTouchInput);
-
-    window.addEventListener("pointerdown", (e) => {
-      if (e.button === 0 && cooldown <= 0) {
-        attackTime = ATTACK_DURATION;
-        cooldown = COOLDOWN_TIME;
-      }
-    });
+    window.addEventListener("pointerdown", attackPointerDown);
+    canvas.addEventListener("pointermove", updatePointerPosition);
 
     const pointer = {
       x: 0,
       y: 0,
     };
-
-    canvas.addEventListener("pointermove", (e) => {
-      const rect = canvas.getBoundingClientRect();
-
-      pointer.x = e.clientX - rect.left;
-      pointer.y = e.clientY - rect.top;
-    });
 
     function takeDamage(amount: number) {
       health -= amount;
@@ -149,8 +179,39 @@ export default function Game({ playerName }: { playerName: string }) {
     let attackTime = 0;
     let cooldown = 0;
 
-    const ATTACK_DURATION = 0.15; // seconds
-    const COOLDOWN_TIME = 0.5;    // seconds
+    // Previous orientation/motion readings, used to detect the shake
+    // gesture that swaps the player's sprite.
+    let prevGamma: number | null = null;
+    let prevMotionX: number | null = null;
+    let prevMotionY: number | null = null;
+    let prevMotionZ: number | null = null;
+
+    function updateShakeToSwapSprite() {
+      const currentOrientation = debugRef.current.orientation;
+      const currentMotion = debugRef.current.motion;
+
+      if (!currentOrientation || !currentMotion) return;
+
+      const { gamma } = currentOrientation;
+      const { x, y, z } = currentMotion;
+
+      if (prevGamma !== null && prevMotionY !== null) {
+        const gammaDelta = Math.abs(gamma - prevGamma);
+        const accelYDelta = Math.abs(y - prevMotionY);
+
+        if (
+          gammaDelta > GAMMA_DELTA_THRESHOLD &&
+          accelYDelta > ACCEL_Y_DELTA_THRESHOLD
+        ) {
+          shark = !shark;
+        }
+      }
+
+      prevGamma = gamma;
+      prevMotionX = x;
+      prevMotionY = y;
+      prevMotionZ = z;
+    }
 
     function loop(now: number) {
       const dt = (now - last) / 1000;
@@ -232,9 +293,6 @@ export default function Game({ playerName }: { playerName: string }) {
         Math.min(WORLD_HEIGHT - height, localPlayer.y - height / 2)
       );
 
-      const pointerWorldX = pointer.x + cameraX;
-      const pointerWorldY = pointer.y + cameraY;
-
       // Background
       ctx.fillStyle = "#181818";
       ctx.fillRect(0, 0, width, height);
@@ -265,43 +323,41 @@ export default function Game({ playerName }: { playerName: string }) {
       // World border
       ctx.strokeStyle = "#ffffff";
       ctx.lineWidth = 4;
-      ctx.strokeRect(
-        -cameraX,
-        -cameraY,
-        WORLD_WIDTH,
-        WORLD_HEIGHT
-      );
+      ctx.strokeRect(-cameraX, -cameraY, WORLD_WIDTH, WORLD_HEIGHT);
 
-      // display playername under neath image
+      // Player name
       ctx.fillStyle = "#ffffff";
       ctx.font = "16px Arial";
       ctx.textAlign = "center";
-      ctx.fillText(playerName, player.x - cameraX, player.y - PLAYER_SIZE / 2 - cameraY - 10);
+      ctx.fillText(
+        playerName,
+        player.x - cameraX,
+        player.y - PLAYER_SIZE / 2 - cameraY - 10
+      );
 
-      // draw health and shield bar BELOW player image, and make them filled up based on a variable
-
+      // Health bar
       ctx.fillStyle = "#ff0000";
-      ctx.fillRect(player.x - cameraX - 50, player.y + PLAYER_SIZE / 2 - cameraY + 10, health, 10);
+      ctx.fillRect(
+        player.x - cameraX - 50,
+        player.y + PLAYER_SIZE / 2 - cameraY + 10,
+        health,
+        10
+      );
 
-      const playerImage = new Image();
-      // playerImage.src = "/assets/sprites/cat-removebg-preview.png";
-      // depends based on shark boolean
-      playerImage.src = shark ? "/assets/sprites/cat-removebg-preview.png"
-        : "/assets/sprites/shark-removebg-preview.png";
-      playerImage.width = PLAYER_SIZE;
-      playerImage.height = PLAYER_SIZE;
+      // Player sprite (swapped via shake gesture)
+      updateShakeToSwapSprite();
+      const currentSprite = shark ? catImage : sharkImage;
 
       ctx.drawImage(
-        playerImage,
+        currentSprite,
         player.x - PLAYER_SIZE / 2 - cameraX,
         player.y - PLAYER_SIZE / 2 - cameraY,
         PLAYER_SIZE,
         PLAYER_SIZE
       );
 
+      // Shield
       if (keys[" "]) {
-        // show shield (rectangle)
-
         ctx.fillStyle = "rgba(0, 255, 255, 0.5)";
         ctx.fillRect(
           player.x - cameraX - PLAYER_SIZE / 2 - 10,
@@ -311,17 +367,17 @@ export default function Game({ playerName }: { playerName: string }) {
         );
       }
 
+      // Attack swing
       if (attackTime > 0) {
         const screenPlayerX = player.x - cameraX;
         const screenPlayerY = player.y - cameraY;
 
-        const dx = pointer.x - screenPlayerX;
-        const dy = pointer.y - screenPlayerY;
+        const attackDx = pointer.x - screenPlayerX;
+        const attackDy = pointer.y - screenPlayerY;
 
-        const length = Math.hypot(dx, dy);
-
-        const dirX = dx / length;
-        const dirY = dy / length;
+        const length = Math.hypot(attackDx, attackDy);
+        const dirX = attackDx / length;
+        const dirY = attackDy / length;
 
         const attackLength = 300;
 
@@ -337,7 +393,6 @@ export default function Game({ playerName }: { playerName: string }) {
         ctx.stroke();
       }
 
-
       requestAnimationFrame(loop);
     }
 
@@ -351,12 +406,15 @@ export default function Game({ playerName }: { playerName: string }) {
       canvas.removeEventListener("pointermove", updateTouchInput);
       canvas.removeEventListener("pointerup", endTouchInput);
       canvas.removeEventListener("pointercancel", endTouchInput);
+      window.removeEventListener("pointerdown", attackPointerDown);
+      canvas.removeEventListener("pointermove", updatePointerPosition);
     };
   }, []);
 
   return (
     <canvas
       ref={canvasRef}
+      onContextMenu={(e) => e.preventDefault()}
       style={{
         width: "100vw",
         height: "100vh",
@@ -364,7 +422,10 @@ export default function Game({ playerName }: { playerName: string }) {
         userSelect: "none",
         WebkitUserSelect: "none",
         touchAction: "none",
+        WebkitUserSelect: "none",
+        userSelect: "none",
         WebkitTouchCallout: "none",
+        WebkitTapHighlightColor: "transparent",
       }}
     />
   );
