@@ -295,7 +295,7 @@ export default function Game({ playerName }: { playerName: string }) {
         ctx.lineWidth = 4;
 
         ctx.beginPath();
-        ctx.moveTo(screenPlayerX, screenPlayerY);
+        ctx.moveTo(screenPlayerX + dirX * 50, screenPlayerY + dirY * 50);
         ctx.lineTo(
           screenPlayerX + dirX * attackLength,
           screenPlayerY + dirY * attackLength
