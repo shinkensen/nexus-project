@@ -50,7 +50,7 @@ export async function addPlayer(name: string) {
 
     return {
         error: null,
-        uuid: player?.uuid ?? player?.id ?? null,
+        uuid: player?.id ?? null,
     };
 }
 
@@ -75,7 +75,7 @@ export async function setTeamGold(shark: boolean, amount: number) {
 }
 
 export async function getSingleGold(uuid: string) {
-    const { data, error } = await supabase.from('game').select('gold').eq("uuid", uuid).single();
+    const { data, error } = await supabase.from('game').select('gold').eq("id", uuid).single();
     if (error) {
         console.error(error.message);
     }
@@ -83,7 +83,7 @@ export async function getSingleGold(uuid: string) {
 }
 
 export async function setSingleGold(uuid: string, amount: number) {
-    const { data, error } = await supabase.from("game").update({ gold: amount }).eq("uuid", uuid);
+    const { data, error } = await supabase.from("game").update({ gold: amount }).eq("id", uuid);
 
     if (error) {
         console.error(error.message);
@@ -93,7 +93,7 @@ export async function setSingleGold(uuid: string, amount: number) {
 }
 
 export async function getShield(uuid: string) {
-    const { data, error } = await supabase.from("game").select("shield").eq("uuid", uuid).single();
+    const { data, error } = await supabase.from("game").select("shield").eq("id", uuid).single();
 
     if (error) {
         console.error(error.message);
@@ -103,7 +103,7 @@ export async function getShield(uuid: string) {
 }
 
 export async function setShield(uuid: string, shieldUp: boolean) {
-    const { data, error } = await supabase.from("game").update({ shield: shieldUp }).eq("uuid", uuid);
+    const { data, error } = await supabase.from("game").update({ shield: shieldUp }).eq("id", uuid);
 
     if (error) {
         console.error(error.message);
@@ -113,7 +113,7 @@ export async function setShield(uuid: string, shieldUp: boolean) {
 }
 
 export async function getPosition(uuid: string) {
-    const { data, error } = await supabase.from("game").select("positionX, positionY").eq("uuid", uuid).single();
+    const { data, error } = await supabase.from("game").select("positionX, positionY").eq("id", uuid).single();
 
     if (error) {
         console.error(error.message);
@@ -123,7 +123,7 @@ export async function getPosition(uuid: string) {
 }
 
 export async function setPosition(uuid: string, position: { x: number; y: number }) {
-    const { data, error } = await supabase.from("game").update({ positionX: position.x, positionY: position.y }).eq("uuid", uuid);
+    const { data, error } = await supabase.from("game").update({ positionX: position.x, positionY: position.y }).eq("id", uuid);
 
     if (error) {
         console.error(error.message);
@@ -133,7 +133,7 @@ export async function setPosition(uuid: string, position: { x: number; y: number
 }
 
 export async function getName(uuid: string) {
-    const { data, error } = await supabase.from("game").select("name").eq("uuid", uuid).single();
+    const { data, error } = await supabase.from("game").select("name").eq("id", uuid).single();
 
     if (error) {
         console.error(error.message);
@@ -143,7 +143,7 @@ export async function getName(uuid: string) {
 }
 
 export async function setName(uuid: string, name: string) {
-    const { data, error } = await supabase.from("game").update({ name }).eq("uuid", uuid);
+    const { data, error } = await supabase.from("game").update({ name }).eq("id", uuid);
 
     if (error) {
         console.error(error.message);
@@ -152,12 +152,9 @@ export async function setName(uuid: string, name: string) {
     return data;
 }
 
-export async function getUUID(uuid: string) {
-    return uuid;
-}
 
 export async function setUUID(uuid: string, newUUID: string) {
-    const { data, error } = await supabase.from("game").update({ uuid: newUUID }).eq("uuid", uuid);
+    const { data, error } = await supabase.from("game").update({ id: newUUID }).eq("id", uuid);
 
     if (error) {
         console.error(error.message);
@@ -176,8 +173,8 @@ export async function getAttacks() {
     return data;
 }
 
-export async function addAttack(attackerUUID: string, position: { x: number; y: number }, time: number, direction: number) {
-    const { data, error } = await supabase.from("attacks").insert({ attackerUUID, positionX: position.x, positionY: position.y, time, direction }).select();
+export async function addAttack(uuid: string, position: { x: number; y: number }, time: number, direction: number) {
+    const { data, error } = await supabase.from("attacks").insert({ uuid, positionX: position.x, positionY: position.y, time, direction }).select();
 }
 
 export async function killPlayer(uuid: string) {
