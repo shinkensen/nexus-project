@@ -118,7 +118,10 @@ export default function Game({ playerName }: { playerName: string }) {
       pointer.y = e.clientY - rect.top;
     });
 
-    function attack() { }
+    function takeDamage(amount: number) {
+      health -= amount;
+      if (health < 0) health = 0;
+    }
 
     let last = performance.now();
     const maxTouchDistance = 90;
