@@ -11,8 +11,6 @@ const PLAYER_SPEED = 1000; // pixels/sec
 export default function Game() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  let shark = true;
-
   useEffect(() => {
     const canvas = canvasRef.current!;
     const ctx = canvas.getContext("2d")!;
@@ -100,6 +98,7 @@ export default function Game() {
 
     let last = performance.now();
     const maxTouchDistance = 90;
+    const touchDeadzone = 8;
 
     function loop(now: number) {
       const dt = (now - last) / 1000;
@@ -117,9 +116,13 @@ export default function Game() {
         const touchDx = touchInput.x - touchInput.originX;
         const touchDy = touchInput.y - touchInput.originY;
         const touchDistance = Math.hypot(touchDx, touchDy);
-        const touchStrength = Math.min(1, touchDistance / maxTouchDistance);
 
-        if (touchDistance > 0) {
+        if (touchDistance > touchDeadzone) {
+          const touchStrength = Math.min(
+            1,
+            (touchDistance - touchDeadzone) / (maxTouchDistance - touchDeadzone)
+          );
+
           dx += (touchDx / touchDistance) * touchStrength;
           dy += (touchDy / touchDistance) * touchStrength;
         }
