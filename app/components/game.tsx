@@ -12,7 +12,7 @@ export default function Game({ playerName }: { playerName: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   let health = 100;
-  let shield = 0;
+  let shield = 50;
   let shark = true;
 
   useEffect(() => {
