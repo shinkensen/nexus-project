@@ -1,107 +1,163 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useRef } from "react";
 
-interface Player {
-  username: string;
-  x: number;
-  y: number;
-}
+const WORLD_WIDTH = 3000;
+const WORLD_HEIGHT = 3000;
+
+const PLAYER_SIZE = 30;
+const PLAYER_SPEED = 350; // pixels/sec
 
 export default function Game() {
-  const [username, setUsername] = useState("");
-  const [player, setPlayer] = useState<Player>({
-    username: "",
-    x: 50,
-    y: 50
-  });
-  const [keys, setKeys] = useState<{ [key: string]: boolean }>({});
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  // Save username to localStorage
   useEffect(() => {
-    const savedUsername = localStorage.getItem("username");
-    if (savedUsername) {
-      setUsername(savedUsername);
-      setPlayer(prev => ({ ...prev, username: savedUsername }));
+    const canvas = canvasRef.current!;
+    const ctx = canvas.getContext("2d")!;
+
+    let width = window.innerWidth;
+    let height = window.innerHeight;
+
+    function resize() {
+      width = window.innerWidth;
+      height = window.innerHeight;
+
+      canvas.width = width;
+      canvas.height = height;
     }
-  }, []);
 
-  // Update username
-  const handleUsername = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newUsername = e.target.value;
-    setUsername(newUsername);
-    setPlayer(prev => ({ ...prev, username: newUsername }));
-    localStorage.setItem("username", newUsername);
-  };
+    resize();
+    window.addEventListener("resize", resize);
 
-  // Handle key presses
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      setKeys(prev => ({ ...prev, [e.key.toLowerCase()]: true }));
+    const keys: Record<string, boolean> = {};
+
+    const player = {
+      x: WORLD_WIDTH / 2,
+      y: WORLD_HEIGHT / 2,
     };
 
-    const handleKeyUp = (e: KeyboardEvent) => {
-      setKeys(prev => ({ ...prev, [e.key.toLowerCase()]: false }));
-    };
+    function keyDown(e: KeyboardEvent) {
+      keys[e.key.toLowerCase()] = true;
+    }
 
-    window.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("keyup", handleKeyUp);
+    function keyUp(e: KeyboardEvent) {
+      keys[e.key.toLowerCase()] = false;
+    }
+
+    window.addEventListener("keydown", keyDown);
+    window.addEventListener("keyup", keyUp);
+
+    let last = performance.now();
+
+    function loop(now: number) {
+      const dt = (now - last) / 1000;
+      last = now;
+
+      let dx = 0;
+      let dy = 0;
+
+      if (keys["w"] || keys["arrowup"]) dy--;
+      if (keys["s"] || keys["arrowdown"]) dy++;
+      if (keys["a"] || keys["arrowleft"]) dx--;
+      if (keys["d"] || keys["arrowright"]) dx++;
+
+      // Normalize diagonal movement
+      if (dx !== 0 || dy !== 0) {
+        const len = Math.hypot(dx, dy);
+        dx /= len;
+        dy /= len;
+      }
+
+      player.x += dx * PLAYER_SPEED * dt;
+      player.y += dy * PLAYER_SPEED * dt;
+
+      // Keep player inside world
+      player.x = Math.max(
+        PLAYER_SIZE / 2,
+        Math.min(WORLD_WIDTH - PLAYER_SIZE / 2, player.x)
+      );
+      player.y = Math.max(
+        PLAYER_SIZE / 2,
+        Math.min(WORLD_HEIGHT - PLAYER_SIZE / 2, player.y)
+      );
+
+      // Camera follows player
+      const cameraX = Math.max(
+        0,
+        Math.min(WORLD_WIDTH - width, player.x - width / 2)
+      );
+
+      const cameraY = Math.max(
+        0,
+        Math.min(WORLD_HEIGHT - height, player.y - height / 2)
+      );
+
+      // Background
+      ctx.fillStyle = "#181818";
+      ctx.fillRect(0, 0, width, height);
+
+      // Grid
+      ctx.strokeStyle = "#2f2f2f";
+      ctx.lineWidth = 1;
+
+      const grid = 100;
+
+      const startX = Math.floor(cameraX / grid) * grid;
+      const startY = Math.floor(cameraY / grid) * grid;
+
+      for (let x = startX; x <= cameraX + width; x += grid) {
+        ctx.beginPath();
+        ctx.moveTo(x - cameraX, 0);
+        ctx.lineTo(x - cameraX, height);
+        ctx.stroke();
+      }
+
+      for (let y = startY; y <= cameraY + height; y += grid) {
+        ctx.beginPath();
+        ctx.moveTo(0, y - cameraY);
+        ctx.lineTo(width, y - cameraY);
+        ctx.stroke();
+      }
+
+      // World border
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 4;
+      ctx.strokeRect(
+        -cameraX,
+        -cameraY,
+        WORLD_WIDTH,
+        WORLD_HEIGHT
+      );
+
+      // Player
+      ctx.fillStyle = "#4ade80";
+      ctx.fillRect(
+        player.x - PLAYER_SIZE / 2 - cameraX,
+        player.y - PLAYER_SIZE / 2 - cameraY,
+        PLAYER_SIZE,
+        PLAYER_SIZE
+      );
+
+      requestAnimationFrame(loop);
+    }
+
+    requestAnimationFrame(loop);
+
     return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("keyup", handleKeyUp);
+      window.removeEventListener("resize", resize);
+      window.removeEventListener("keydown", keyDown);
+      window.removeEventListener("keyup", keyUp);
     };
   }, []);
-
-  // Update player position
-  useEffect(() => {
-    const moveSpeed = 5;
-    const boundaries = {
-      left: 20,
-      right: 80,
-      top: 20,
-      bottom: 80
-    };
-
-    if (keys.w) player.y = Math.max(boundaries.top, player.y - moveSpeed);
-    if (keys.s) player.y = Math.min(100 - boundaries.bottom, player.y + moveSpeed);
-    if (keys.a) player.x = Math.max(boundaries.left, player.x - moveSpeed);
-    if (keys.d) player.x = Math.min(100 - boundaries.right, player.x + moveSpeed);
-
-    setPlayer(prev => ({
-      ...prev,
-      x: player.x,
-      y: player.y
-    }));
-  }, [keys]);
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen">
-      <div className="mb-8">
-        <input
-          type="text"
-          value={username}
-          onChange={handleUsername}
-          placeholder="Enter your username"
-          className="p-2 text-black rounded bg-gray-200"
-        />
-      </div>
-
-      <div className="relative w-[90vh] h-[90vh] bg-gray-800 rounded-lg border-2 border-gray-700">
-        <div
-          className="absolute w-8 h-8 bg-blue-500 rounded-full"
-          style={{
-            left: `${player.x}%`,
-            top: `${player.y}%`
-          }}
-        >
-          <span className="text-white text-xs font-bold">
-            {player.username || "Player"}
-          </span>
-        </div>
-        <div className="absolute bottom-4 left-4 text-gray-300 text-sm">
-          Use WASD to move
-        </div>
-      </div>
-    </div>
+    <canvas
+      ref={canvasRef}
+      style={{
+        display: "block",
+        width: "100vw",
+        height: "100vh",
+      }}
+    />
   );
 }
