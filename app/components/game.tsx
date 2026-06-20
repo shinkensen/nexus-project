@@ -205,10 +205,10 @@ export default function Game({
         }
       }
 
-      prevGamma = gamma;
-      prevMotionX = x;
-      prevMotionY = y;
-      prevMotionZ = z;
+      prevGamma = currentOrientation.gamma;
+      prevMotionX = currentMotion.x;
+      prevMotionY = currentMotion.y;
+      prevMotionZ = currentMotion.z;
     }
 
     function loop(now: number) {
