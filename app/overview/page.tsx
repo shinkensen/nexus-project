@@ -1,7 +1,13 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { PLAYER_SIZE } from "./components/game";
+
+export const WORLD_WIDTH = 3000;
+export const WORLD_HEIGHT = 3000;
+
+export const PLAYER_SIZE = 100;
+export const PLAYER_SPEED = 1000; // pixels/sec
+
 
 export default function Overview() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -54,6 +60,29 @@ export default function Overview() {
             // draw health bar
             ctx.fillStyle = "red";
             ctx.fillRect(screenX - 25, screenY - 40, 50 * (player.health / 100), 5);
+
+            if (player.shield) {
+                ctx.fillStyle = "rgba(0, 255, 255, 0.5)";
+                ctx.fillRect(
+                    player.x - PLAYER_SIZE / 2 - 10,
+                    player.y - PLAYER_SIZE / 2 - 10,
+                    PLAYER_SIZE + 20,
+                    PLAYER_SIZE + 20
+                );
+            }
+        });
+
+        // handle attacks from supabase
+        const attacks: any[] = [];
+
+        attacks.forEach((attack) => {
+
+            const attackLength = 300;
+            const angle = attack.direction; // assuming direction is in radians
+            const startX = attack.playerX;
+            const startY = attack.playerY;
+            const endX = startX + attackLength * Math.cos(angle);
+            const endY = startY + attackLength * Math.sin(angle);
         });
 
         return () => {

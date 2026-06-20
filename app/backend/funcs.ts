@@ -1,6 +1,7 @@
 import { supabase } from "./supabase";
 /*
 id
+name
 positionX
 postitionY
 gold
