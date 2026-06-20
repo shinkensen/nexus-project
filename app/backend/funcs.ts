@@ -167,3 +167,21 @@ export async function setUUID(uuid: string, newUUID: string) {
 
     return data;
 }
+
+export async function getAttacks() {
+    const { data, error } = await supabase.from("attacks").select("*");
+
+    if (error) {
+        console.error(error.message);
+    }
+
+    return data;
+}
+
+export async function addAttack(attackerUUID: string, position: { x: number; y: number }, time: number, direction: number) {
+    const { data, error } = await supabase.from("attacks").insert({ attackerUUID, positionX: position.x, positionY: position.y, time, direction }).select();
+}
+
+export async function killPlayer(uuid: string) {
+    // todo
+}
