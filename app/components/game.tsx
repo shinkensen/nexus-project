@@ -12,7 +12,6 @@ export default function Game({ playerName }: { playerName: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   let health = 100;
-  let shield = 50;
   let shark = true;
 
   useEffect(() => {
@@ -99,6 +98,12 @@ export default function Game({ playerName }: { playerName: string }) {
     canvas.addEventListener("pointermove", updateTouchInput);
     canvas.addEventListener("pointerup", endTouchInput);
     canvas.addEventListener("pointercancel", endTouchInput);
+
+    function attack() { }
+    function stealMoney() { }
+    function dropMoney() { }
+    function pickupShield() { }
+    function dropShield() { }
 
     let last = performance.now();
     const maxTouchDistance = 90;
@@ -206,11 +211,11 @@ export default function Game({ playerName }: { playerName: string }) {
       ctx.fillStyle = "#ff0000";
       ctx.fillRect(player.x - cameraX - 50, player.y + PLAYER_SIZE / 2 - cameraY + 10, health, 10);
 
-      ctx.fillStyle = "#0000ff";
-      ctx.fillRect(player.x - cameraX - 50, player.y + PLAYER_SIZE / 2 - cameraY, shield, 10);
-
       const playerImage = new Image();
-      playerImage.src = "/assets/sprites/cat-removebg-preview.png";
+      // playerImage.src = "/assets/sprites/cat-removebg-preview.png";
+      // depends based on shark boolean
+      playerImage.src = shark ? "/assets/sprites/cat-removebg-preview.png"
+        : "/assets/sprites/shark-removebg-preview.png";
       playerImage.width = PLAYER_SIZE;
       playerImage.height = PLAYER_SIZE;
 
