@@ -49,9 +49,6 @@ export default function Overview() {
             ctx.lineTo(canvas.width, y);
             ctx.stroke();
         }
-
-        // grab all players (placeholder) and draw them. sprite shark/cat based on shark boolean. also draw health bar and name above them
-
         players.forEach(player => {
             let screenX = player.playerX;
             let screenY = player.playerY;
@@ -66,7 +63,7 @@ export default function Overview() {
             const playerImage = new Image();
             // playerImage.src = "/assets/sprites/cat-removebg-preview.png";
             // depends based on shark boolean
-            playerImage.src = player.shark ? "/assets/sprites/cat-removebg-preview.png"
+            playerImage.src =player.shield?'/assets/sprites/shield.png': player.shark ? "/assets/sprites/cat-removebg-preview.png"
                 : "/assets/sprites/shark-removebg-preview.png";
             playerImage.width = PLAYER_SIZE;
             playerImage.height = PLAYER_SIZE;
