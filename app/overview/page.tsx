@@ -52,14 +52,11 @@ export default function Overview() {
         players.forEach(player => {
             let screenX = player.playerX;
             let screenY = player.playerY;
-
             if (screenX < 0) screenX = 0;
             if (screenY < 0) screenY = 0;
             if (screenX > canvas.width) screenX = canvas.width;
             if (screenY > canvas.height) screenY = canvas.height;
-
             // draw player sprite image
-
             const playerImage = new Image();
             // playerImage.src = "/assets/sprites/cat-removebg-preview.png";
             // depends based on shark boolean
@@ -67,33 +64,19 @@ export default function Overview() {
                 : "/assets/sprites/shark-removebg-preview.png";
             playerImage.width = PLAYER_SIZE;
             playerImage.height = PLAYER_SIZE;
-
-            // draw health bar
-            ctx.fillStyle = "red";
-            ctx.fillRect(screenX - 25, screenY - 40, 50 * (player.health / 100), 5);
-
-            if (player.shield) {
-                ctx.fillStyle = "rgba(0, 255, 255, 0.5)";
-                ctx.fillRect(
-                    player.x - PLAYER_SIZE / 2 - 10,
-                    player.y - PLAYER_SIZE / 2 - 10,
-                    PLAYER_SIZE + 20,
-                    PLAYER_SIZE + 20
-                );
-            }
         });
 
         // handle attacks from supabase
         const attacks: any[] = [];
 
         attacks.forEach((attack) => {
-
             const attackLength = 300;
             const angle = attack.direction; // assuming direction is in radians
             const startX = attack.playerX;
             const startY = attack.playerY;
             const endX = startX + attackLength * Math.cos(angle);
             const endY = startY + attackLength * Math.sin(angle);
+            
         });
 
         return () => {

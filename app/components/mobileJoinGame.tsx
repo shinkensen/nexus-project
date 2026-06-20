@@ -3,11 +3,13 @@
 import { useEffect, useState } from "react";
 import { addPlayer } from "../backend/funcs";
 import { useRouter } from "next/navigation";
+import { useDeviceMotion } from "../hooks/useDeviceMotion";
 
 export const MobileConnect = () => {
   const [name, setName] = useState("");
   const [submit, setSubmit] = useState(false);
   const [loading, setLoading] = useState(false);
+  const { orientation, motion, permissionNeeded, requestPermission } = useDeviceMotion();
   const router = useRouter();
 
   useEffect(() => {
@@ -48,7 +50,12 @@ export const MobileConnect = () => {
 
         <button
           className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded transition-colors disabled:opacity-50"
-          onClick={() => setSubmit(true)}
+          onClick={(e) => {
+            if (permissionNeeded) {
+              requestPermission();
+            }
+            setSubmit(true);
+          }}
           disabled={!name || loading}
         >
           {loading ? "Joining..." : "Join"}
