@@ -116,14 +116,6 @@ export default function Game({ playerName }: { playerName: string }) {
       if (keys["s"] || keys["arrowdown"]) dy++;
       if (keys["a"] || keys["arrowleft"]) dx--;
       if (keys["d"] || keys["arrowright"]) dx++;
-      // show shield when space held
-      if (keys[" "]) {
-        // show shield
-      }
-
-      if (!keys[" "]) {
-        // hide shield
-      }
 
       // on click of left mouse button, attack in direction of mouse
       if (keys["mouse0"]) {
@@ -241,6 +233,18 @@ export default function Game({ playerName }: { playerName: string }) {
         PLAYER_SIZE,
         PLAYER_SIZE
       );
+
+      if (keys[" "]) {
+        // show shield (rectangle)
+
+        ctx.fillStyle = "rgba(0, 255, 255, 0.5)";
+        ctx.fillRect(
+          player.x - cameraX - PLAYER_SIZE / 2 - 10,
+          player.y - cameraY - PLAYER_SIZE / 2 - 10,
+          PLAYER_SIZE + 20,
+          PLAYER_SIZE + 20
+        );
+      }
 
       requestAnimationFrame(loop);
     }
