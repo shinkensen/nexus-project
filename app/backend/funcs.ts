@@ -1,92 +1,90 @@
 import { supabase } from "./supabase";
 
 export async function addPlayer(name: string) {
-  let shark = false;
-  let sharkCount = 0;
-  let nonShark = 0;
+    let shark = false;
+    let sharkCount = 0;
+    let nonShark = 0;
 
-  const { data, error } = await supabase.from("game").select("shark");
+    const { data, error } = await supabase.from("game").select("shark");
 
-  if (error) {
-    return { error: error.message, uuid: null };
-  }
-
-  data?.forEach((val) => {
-    if (val.shark) {
-      sharkCount++;
-    } else {
-      nonShark++;
+    if (error) {
+        return { error: error.message, uuid: null };
     }
-  });
 
-  if (sharkCount < nonShark) {
-    shark = true;
-  }
+    data?.forEach((val) => {
+        if (val.shark) {
+            sharkCount++;
+        } else {
+            nonShark++;
+        }
+    });
 
-  const positionY = Math.floor(1000 * Math.random());
-  const positionX = Math.floor(
-    shark ? 90 * Math.random() + 10 : 90 * Math.random() + 900
-  );
+    if (sharkCount < nonShark) {
+        shark = true;
+    }
 
-  const { data: inserted, error: insertError } = await supabase
-    .from("game")
-    .insert({
-      name,
-      positionX,
-      positionY,
-      gold: 0,
-      shark,
-      shield: false,
-    })
-    .select();
+    const positionY = Math.floor(1000 * Math.random());
+    const positionX = Math.floor(
+        shark ? 90 * Math.random() + 10 : 90 * Math.random() + 900
+    );
 
-  if (insertError) {
-    return { error: insertError.message, uuid: null };
-  }
+    const { data: inserted, error: insertError } = await supabase
+        .from("game")
+        .insert({
+            name,
+            positionX,
+            positionY,
+            gold: 0,
+            shark,
+            shield: false,
+        })
+        .select();
 
-  // change this depending on your table columns:
-  // if your row has "uuid", use inserted[0].uuid
-  // if your row has "id", use inserted[0].id
-  const player = inserted?.[0];
+    if (insertError) {
+        return { error: insertError.message, uuid: null };
+    }
 
-  return {
-    error: null,
-    uuid: player?.uuid ?? player?.id ?? null,
-  };
+    // change this depending on your table columns:
+    // if your row has "uuid", use inserted[0].uuid
+    // if your row has "id", use inserted[0].id
+    const player = inserted?.[0];
+
+    return {
+        error: null,
+        uuid: player?.uuid ?? player?.id ?? null,
+    };
 }
 
 // TODO: SET TO NEW TABLE WITH TEAM GOLD
 export async function getTeamGold(shark: boolean) {
-  const { data, error } = await supabase.from("game").select("*");
+    const { data, error } = await supabase.from("teams").select("gold").eq("team", shark ? "sharks" : "cats").single();
 
-  if (error) {
-    console.error(error.message);
-    return 0;
-  }
-
-  let gold = 0;
-  data?.forEach((value) => {
-    if (value.shark === shark) {
-      gold += value.gold;
+    if (error) {
+        console.error(error.message);
     }
-  });
 
-  return gold;
+    return data?.gold;
 }
 
 export async function setTeamGold(shark: boolean, amount: number) {
-    const { data, error } = await supabase.from("game").select("*");
+    const { data, error } = await supabase.from("teams").update({ gold: amount }).eq("team", shark ? "sharks" : "cats");
+
+    if (error) {
+        console.error(error.message);
+    }
+
+    return data;
 }
 
-export async function getSingleGold(uuid:string){
-    const {data,error} = await supabase.from('game').select('gold').eq("uuid",uuid).single();
-    if (error){
+export async function getSingleGold(uuid: string) {
+    const { data, error } = await supabase.from('game').select('gold').eq("uuid", uuid).single();
+    if (error) {
         console.error(error.message);
     }
     return data?.gold;
 }
 
-export async function setSingleGold(uuid:string, amount:number) {
+export async function setSingleGold(uuid: string, amount: number) {
     const { data, error } = await supabase.from("game").update({ gold: amount }).eq("uuid", uuid);
 
     if (error) {
