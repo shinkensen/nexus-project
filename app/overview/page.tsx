@@ -44,8 +44,13 @@ export default function Overview() {
         const players: any[] = []
 
         players.forEach(player => {
-            const screenX = player.x;
-            const screenY = player.y;
+            let screenX = player.x;
+            let screenY = player.y;
+
+            if (screenX < 0) screenX = 0;
+            if (screenY < 0) screenY = 0;
+            if (screenX > canvas.width) screenX = canvas.width;
+            if (screenY > canvas.height) screenY = canvas.height;
 
             // draw player sprite image
 
