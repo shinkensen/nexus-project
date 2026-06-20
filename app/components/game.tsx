@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "../backend/supabase";
+import { setShield } from "../backend/funcs";
 
 export const WORLD_WIDTH = 3000;
 export const WORLD_HEIGHT = 3000;
