@@ -50,7 +50,7 @@ export async function addPlayer(name: string) {
 
     return {
         error: null,
-        uuid: player?.uuid ?? player?.id ?? null,
+        uuid: player?.id ?? null,
     };
 }
 
