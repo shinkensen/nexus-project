@@ -14,6 +14,8 @@ export default function Game() {
   useEffect(() => {
     const canvas = canvasRef.current!;
     const ctx = canvas.getContext("2d")!;
+    const playerImage = new Image();
+    playerImage.src = "/assets/sprites/cat-removebg-preview.png";
 
     let width = window.innerWidth;
     let height = window.innerHeight;
@@ -28,8 +30,17 @@ export default function Game() {
 
     resize();
     window.addEventListener("resize", resize);
+    canvas.style.touchAction = "none";
 
     const keys: Record<string, boolean> = {};
+    const touchInput = {
+      active: false,
+      pointerId: -1,
+      originX: 0,
+      originY: 0,
+      x: 0,
+      y: 0,
+    };
 
     const player = {
       x: WORLD_WIDTH / 2,
@@ -44,10 +55,49 @@ export default function Game() {
       keys[e.key.toLowerCase()] = false;
     }
 
+    function updateTouchInput(e: PointerEvent) {
+      if (!touchInput.active || e.pointerId !== touchInput.pointerId) {
+        return;
+      }
+
+      touchInput.x = e.clientX;
+      touchInput.y = e.clientY;
+    }
+
+    function startTouchInput(e: PointerEvent) {
+      if (e.pointerType !== "touch" || touchInput.active) {
+        return;
+      }
+
+      touchInput.active = true;
+      touchInput.pointerId = e.pointerId;
+      touchInput.originX = e.clientX;
+      touchInput.originY = e.clientY;
+      touchInput.x = e.clientX;
+      touchInput.y = e.clientY;
+
+      canvas.setPointerCapture(e.pointerId);
+    }
+
+    function endTouchInput(e: PointerEvent) {
+      if (e.pointerId !== touchInput.pointerId) {
+        return;
+      }
+
+      canvas.releasePointerCapture(e.pointerId);
+      touchInput.active = false;
+      touchInput.pointerId = -1;
+    }
+
     window.addEventListener("keydown", keyDown);
     window.addEventListener("keyup", keyUp);
+    canvas.addEventListener("pointerdown", startTouchInput);
+    canvas.addEventListener("pointermove", updateTouchInput);
+    canvas.addEventListener("pointerup", endTouchInput);
+    canvas.addEventListener("pointercancel", endTouchInput);
 
     let last = performance.now();
+    const maxTouchDistance = 90;
 
     function loop(now: number) {
       const dt = (now - last) / 1000;
@@ -60,6 +110,18 @@ export default function Game() {
       if (keys["s"] || keys["arrowdown"]) dy++;
       if (keys["a"] || keys["arrowleft"]) dx--;
       if (keys["d"] || keys["arrowright"]) dx++;
+
+      if (touchInput.active) {
+        const touchDx = touchInput.x - touchInput.originX;
+        const touchDy = touchInput.y - touchInput.originY;
+        const touchDistance = Math.hypot(touchDx, touchDy);
+        const touchStrength = Math.min(1, touchDistance / maxTouchDistance);
+
+        if (touchDistance > 0) {
+          dx += (touchDx / touchDistance) * touchStrength;
+          dy += (touchDy / touchDistance) * touchStrength;
+        }
+      }
 
       // Normalize diagonal movement
       if (dx !== 0 || dy !== 0) {
@@ -88,7 +150,7 @@ export default function Game() {
       );
 
       const cameraY = Math.max(
-        0,x
+        0,
         Math.min(WORLD_HEIGHT - height, player.y - height / 2)
       );
 
@@ -140,18 +202,15 @@ export default function Game() {
 
       // replace with sprite
 
-      const playerImage = new Image();
-      playerImage.src = "/assets/sprites/cat-removebg-preview.png";
-      playerImage.width = PLAYER_SIZE;
-      playerImage.height = PLAYER_SIZE;
-
-      ctx.drawImage(
-        playerImage,
-        player.x - PLAYER_SIZE / 2 - cameraX,
-        player.y - PLAYER_SIZE / 2 - cameraY,
-        PLAYER_SIZE,
-        PLAYER_SIZE
-      );
+      if (playerImage.complete) {
+        ctx.drawImage(
+          playerImage,
+          player.x - PLAYER_SIZE / 2 - cameraX,
+          player.y - PLAYER_SIZE / 2 - cameraY,
+          PLAYER_SIZE,
+          PLAYER_SIZE
+        );
+      }
 
       requestAnimationFrame(loop);
     }
@@ -162,6 +221,10 @@ export default function Game() {
       window.removeEventListener("resize", resize);
       window.removeEventListener("keydown", keyDown);
       window.removeEventListener("keyup", keyUp);
+      canvas.removeEventListener("pointerdown", startTouchInput);
+      canvas.removeEventListener("pointermove", updateTouchInput);
+      canvas.removeEventListener("pointerup", endTouchInput);
+      canvas.removeEventListener("pointercancel", endTouchInput);
     };
   }, []);
 
@@ -172,6 +235,7 @@ export default function Game() {
         display: "block",
         width: "100vw",
         height: "100vh",
+        touchAction: "none",
       }}
     />
   );
