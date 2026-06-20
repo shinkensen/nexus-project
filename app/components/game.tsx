@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { supabase } from "../backend/supabase";
+import { setShield } from "../backend/funcs";
 const WORLD_WIDTH = 3000;
 const WORLD_HEIGHT = 3000;
 
@@ -13,6 +14,7 @@ const COOLDOWN_TIME = 0.5;
 
 const GAMMA_THRESHOLD = 5;
 const Y_THRESHOLD = 6;
+const SHIELD_DURATION = 3000;
 
 const BROADCAST_INTERVAL_MS = 100;
 
@@ -48,8 +50,13 @@ export default function Game({
     const sharkImage = new Image();
     sharkImage.src = "/assets/sprites/shark-removebg-preview.png";
 
+    const shieldImage = new Image();
+    shieldImage.src = "/assets/objects/box-removebg-preview.png";
+
     let width = window.innerWidth;
     let height = window.innerHeight;
+
+    let clientShield = false;
 
     function resize() {
       width = window.innerWidth;
@@ -189,6 +196,7 @@ export default function Game({
     let prevMotionX: number | null = null;
     let prevMotionY: number | null = null;
     let prevMotionZ: number | null = null;
+    let shieldTimer: ReturnType<typeof setTimeout> | null = null;
 
     function gyroAndAccelHandler() {
       const currentOrientation = debugRef.current.orientation;
@@ -196,12 +204,30 @@ export default function Game({
 
       if (!currentOrientation || !currentMotion) return;
 
+
       if (prevGamma !== null && prevMotionY !== null) {
         const gammaDelta = Math.abs(currentOrientation.gamma - prevGamma);
         const accelYDelta = Math.abs(currentMotion.y - prevMotionY);
-
+        
+        // box detection
         if (gammaDelta > GAMMA_THRESHOLD && accelYDelta > Y_THRESHOLD) {
-          shark = !shark;
+          const playerUuid = localStorage.getItem("player_uuid");
+          if (playerUuid) {
+            clientShield = true;
+
+            if (shieldTimer) {
+              clearTimeout(shieldTimer);
+            }
+
+            void setShield(playerUuid, true);
+
+            shieldTimer = setTimeout(() => {
+              clientShield = false;
+              void setShield(playerUuid, false);
+              shieldTimer = null;
+            }, SHIELD_DURATION);
+          }
+
         }
       }
 
@@ -209,6 +235,18 @@ export default function Game({
       prevMotionX = currentMotion.x;
       prevMotionY = currentMotion.y;
       prevMotionZ = currentMotion.z;
+    }
+
+    function playerShieldApplier(cameraX: number, cameraY: number) {
+      if (!clientShield) return;
+
+      ctx.drawImage(
+        shieldImage,
+        localPlayer.x - PLAYER_SIZE / 2 - cameraX,
+        localPlayer.y - PLAYER_SIZE / 2 - cameraY,
+        PLAYER_SIZE,
+        PLAYER_SIZE
+      );
     }
 
     function loop(now: number) {
@@ -377,6 +415,8 @@ export default function Game({
         PLAYER_SIZE
       );
 
+      playerShieldApplier(cameraX, cameraY);
+
       // Shield
       if (keys[" "]) {
         ctx.fillStyle = "rgba(0, 255, 255, 0.5)";
@@ -429,6 +469,9 @@ export default function Game({
       canvas.removeEventListener("pointercancel", endTouchInput);
       window.removeEventListener("pointerdown", attackPointerDown);
       canvas.removeEventListener("pointermove", updatePointerPosition);
+      if (shieldTimer) {
+        clearTimeout(shieldTimer);
+      }
       supabase.removeChannel(channel);
     };
   }, []);
