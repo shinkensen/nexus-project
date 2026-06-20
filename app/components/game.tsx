@@ -99,15 +99,46 @@ export default function Game({ playerName }: { playerName: string }) {
     canvas.addEventListener("pointerup", endTouchInput);
     canvas.addEventListener("pointercancel", endTouchInput);
 
+    window.addEventListener("pointerdown", (e) => {
+      if (e.button === 0 && cooldown <= 0) {
+        attackTime = ATTACK_DURATION;
+        cooldown = COOLDOWN_TIME;
+      }
+    });
+
+    const pointer = {
+      x: 0,
+      y: 0,
+    };
+
+    canvas.addEventListener("pointermove", (e) => {
+      const rect = canvas.getBoundingClientRect();
+
+      pointer.x = e.clientX - rect.left;
+      pointer.y = e.clientY - rect.top;
+    });
+
     function attack() { }
 
     let last = performance.now();
     const maxTouchDistance = 90;
     const touchDeadzone = 8;
 
+    let attackTime = 0;
+    let cooldown = 0;
+
+    const ATTACK_DURATION = 0.15; // seconds
+    const COOLDOWN_TIME = 0.5;    // seconds
+
     function loop(now: number) {
       const dt = (now - last) / 1000;
       last = now;
+
+      attackTime -= dt;
+      cooldown -= dt;
+
+      if (attackTime < 0) attackTime = 0;
+      if (cooldown < 0) cooldown = 0;
 
       let dx = 0;
       let dy = 0;
@@ -116,12 +147,6 @@ export default function Game({ playerName }: { playerName: string }) {
       if (keys["s"] || keys["arrowdown"]) dy++;
       if (keys["a"] || keys["arrowleft"]) dx--;
       if (keys["d"] || keys["arrowright"]) dx++;
-
-      // on click of left mouse button, attack in direction of mouse
-      if (keys["mouse0"]) {
-        // attack in direction of mouse
-      }
-
 
       if (touchInput.active) {
         const touchDx = touchInput.x - touchInput.originX;
@@ -169,6 +194,9 @@ export default function Game({ playerName }: { playerName: string }) {
         0,
         Math.min(WORLD_HEIGHT - height, player.y - height / 2)
       );
+
+      const pointerWorldX = pointer.x + cameraX;
+      const pointerWorldY = pointer.y + cameraY;
 
       // Background
       ctx.fillStyle = "#181818";
@@ -245,6 +273,33 @@ export default function Game({ playerName }: { playerName: string }) {
           PLAYER_SIZE + 20
         );
       }
+
+      if (attackTime > 0) {
+        const screenPlayerX = player.x - cameraX;
+        const screenPlayerY = player.y - cameraY;
+
+        const dx = pointer.x - screenPlayerX;
+        const dy = pointer.y - screenPlayerY;
+
+        const length = Math.hypot(dx, dy);
+
+        const dirX = dx / length;
+        const dirY = dy / length;
+
+        const attackLength = 300;
+
+        ctx.strokeStyle = "#ffaa00";
+        ctx.lineWidth = 4;
+
+        ctx.beginPath();
+        ctx.moveTo(screenPlayerX, screenPlayerY);
+        ctx.lineTo(
+          screenPlayerX + dirX * attackLength,
+          screenPlayerY + dirY * attackLength
+        );
+        ctx.stroke();
+      }
+
 
       requestAnimationFrame(loop);
     }
