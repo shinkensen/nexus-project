@@ -10,11 +10,12 @@ export const GRID_SIZE = 50;
 
 type Player = {
     id: string | number;
-    playerX: number;
-    playerY: number;
-    shark?: boolean;
-    shield?: boolean;
-    username?: string;
+    positionX: number;
+    positionY: number;
+    gold: number;
+    shark: boolean;
+    shield: boolean;
+    name: string;
 };
 
 export default function Overview() {
@@ -171,8 +172,8 @@ export default function Overview() {
 
             // If your overview is just showing the world directly, use player coords as screen coords.
             // Clamp them so sprites don't go off-screen.
-            const screenX = clamp(player.playerX, 0, canvas.width - PLAYER_SIZE);
-            const screenY = clamp(player.playerY, 0, canvas.height - PLAYER_SIZE);
+            const screenX = clamp(player.positionX, 0, canvas.width - PLAYER_SIZE);
+            const screenY = clamp(player.positionY, 0, canvas.height - PLAYER_SIZE);
 
             let sprite: HTMLImageElement | null = null;
 
@@ -193,12 +194,12 @@ export default function Overview() {
             }
 
             // optional label
-            if (player.username) {
+            if (player.name) {
                 ctx.fillStyle = "black";
                 ctx.font = "16px Arial";
                 ctx.textAlign = "center";
                 ctx.fillText(
-                    player.username,
+                    player.name,
                     screenX + PLAYER_SIZE / 2,
                     screenY - 8
                 );
@@ -233,7 +234,7 @@ export default function Overview() {
             cancelAnimationFrame(animationFrameId);
             window.removeEventListener("resize", resize);
         };
-    }, []);
+    });
 
     return (
         <div>
