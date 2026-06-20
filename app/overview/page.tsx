@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-
+import { supabase } from "../backend/supabase";
 export const WORLD_WIDTH = 3000;
 export const WORLD_HEIGHT = 3000;
 
@@ -11,11 +11,21 @@ export const PLAYER_SPEED = 1000; // pixels/sec
 
 export default function Overview() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
-
+    let n:any[] = [];
+    const [players,setPlayers] = useState(n);
+    useEffect(()=>{
+        const t = async()=>{
+            const {data,error} = await supabase.from('game').select('*');
+            if (error){
+                console.error(error.message);
+            }
+            setPlayers(data!);
+        }
+        t();
+    },[])
     useEffect(() => {
         const canvas = canvasRef.current!;
         const ctx = canvas.getContext("2d")!;
-
         function resize() {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
@@ -41,11 +51,10 @@ export default function Overview() {
         }
 
         // grab all players (placeholder) and draw them. sprite shark/cat based on shark boolean. also draw health bar and name above them
-        const players: any[] = []
 
         players.forEach(player => {
-            let screenX = player.x;
-            let screenY = player.y;
+            let screenX = player.playerX;
+            let screenY = player.playerY;
 
             if (screenX < 0) screenX = 0;
             if (screenY < 0) screenY = 0;
