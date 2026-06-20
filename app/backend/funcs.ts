@@ -4,7 +4,6 @@ export async function addPlayer(name: string) {
     let shark = false;
     let sharkCount = 0;
     let nonShark = 0;
-
     const { data, error } = await supabase.from("game").select("shark");
 
     if (error) {
