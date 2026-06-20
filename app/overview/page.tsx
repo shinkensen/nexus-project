@@ -30,10 +30,12 @@ export default function Overview() {
         cat: HTMLImageElement | null;
         shark: HTMLImageElement | null;
         shield: HTMLImageElement | null;
+        map: HTMLImageElement | null;
     }>({
         cat: null,
         shark: null,
         shield: null,
+        map: null,
     });
 
     // keep ref in sync with state
@@ -52,7 +54,10 @@ export default function Overview() {
         const shield = new Image();
         shield.src = "/assets/sprites/shield.png";
 
-        imagesRef.current = { cat, shark, shield };
+        const map = new Image();
+        map.src = "/assets/map/combined_sides.png";
+
+        imagesRef.current = { cat, shark, shield, map };
     }, []);
 
     // initial fetch + realtime subscription
@@ -147,26 +152,17 @@ export default function Overview() {
         };
 
         const drawGrid = () => {
-            ctx.strokeStyle = "#d0d0d0";
-            ctx.lineWidth = 1;
+        const map = imagesRef.current.map;
+        if (!map) return;
 
-            // vertical lines
-            for (let x = 0; x <= canvas.width; x += GRID_SIZE) {
-                ctx.beginPath();
-                ctx.moveTo(x, 0);
-                ctx.lineTo(x, canvas.height);
-                ctx.stroke();
-            }
-
-            // horizontal lines
-            for (let y = 0; y <= canvas.height; y += GRID_SIZE) {
-                ctx.beginPath();
-                ctx.moveTo(0, y);
-                ctx.lineTo(canvas.width, y);
-                ctx.stroke();
-            }
-        };
-
+        if (map.complete) {
+            // scale the whole map image to fit the canvas
+            ctx.drawImage(map, 0, 0, canvas.width, canvas.height);
+        } else {
+            ctx.fillStyle = "white";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+    };
         const drawPlayer = (player: Player) => {
             const { cat, shark, shield } = imagesRef.current;
 
@@ -180,9 +176,9 @@ export default function Overview() {
             if (player.shield) {
                 sprite = shield;
             } else if (player.shark) {
-                sprite = cat;
-            } else {
                 sprite = shark;
+            } else {
+                sprite = cat;
             }
 
             // draw sprite if loaded, otherwise fallback rectangle
