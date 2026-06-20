@@ -196,15 +196,11 @@ export default function Game({
 
       if (!currentOrientation || !currentMotion) return;
 
-      const { gamma } = currentOrientation;
-      const { x, y, z } = currentMotion;
-
       if (prevGamma !== null && prevMotionY !== null) {
-        const gammaDelta = Math.abs(gamma - prevGamma);
-        const accelYDelta = Math.abs(y - prevMotionY);
+        const gammaDelta = Math.abs(currentOrientation.gamma - prevGamma);
+        const accelYDelta = Math.abs(currentMotion.y - prevMotionY);
 
-        if (
-          gammaDelta > GAMMA_THRESHOLD && accelYDelta > Y_THRESHOLD) {
+        if (gammaDelta > GAMMA_THRESHOLD && accelYDelta > Y_THRESHOLD) {
           shark = !shark;
         }
       }
