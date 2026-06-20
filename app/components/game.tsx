@@ -8,8 +8,12 @@ const WORLD_HEIGHT = 3000;
 const PLAYER_SIZE = 100;
 const PLAYER_SPEED = 1000; // pixels/sec
 
-export default function Game() {
+export default function Game({ playerName }: { playerName: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  let health = 100;
+  let shield = 50;
+  let shark = true;
 
   useEffect(() => {
     const canvas = canvasRef.current!;
@@ -196,6 +200,19 @@ export default function Game() {
         WORLD_HEIGHT
       );
 
+      // display playername under neath image
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "16px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText(playerName, player.x - cameraX, player.y - PLAYER_SIZE / 2 - cameraY - 10);
+
+      // draw health and shield bar BELOW player image, and make them filled up based on a variable
+
+      ctx.fillStyle = "#ff0000";
+      ctx.fillRect(player.x - cameraX - 50, player.y + PLAYER_SIZE / 2 - cameraY + 10, health, 10);
+
+      ctx.fillStyle = "#0000ff";
+      ctx.fillRect(player.x - cameraX - 50, player.y + PLAYER_SIZE / 2 - cameraY, shield, 10);
 
       const playerImage = new Image();
       playerImage.src = "/assets/sprites/cat-removebg-preview.png";
