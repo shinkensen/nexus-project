@@ -7,14 +7,19 @@ const WORLD_WIDTH = 3000;
 const WORLD_HEIGHT = 3000;
 
 const PLAYER_SIZE = 100;
-const PLAYER_SPEED = 350; // pixels/sec
+const PLAYER_SPEED = 1000; // pixels/sec
 
-export default function Game() {
+export default function Game({ playerName }: { playerName: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  let health = 100;
+  let shark = true;
 
   useEffect(() => {
     const canvas = canvasRef.current!;
     const ctx = canvas.getContext("2d")!;
+    const playerImage = new Image();
+    playerImage.src = "/assets/sprites/cat-removebg-preview.png";
 
     let width = window.innerWidth;
     let height = window.innerHeight;
@@ -29,8 +34,17 @@ export default function Game() {
 
     resize();
     window.addEventListener("resize", resize);
+    canvas.style.touchAction = "none";
 
     const keys: Record<string, boolean> = {};
+    const touchInput = {
+      active: false,
+      pointerId: -1,
+      originX: 0,
+      originY: 0,
+      x: 0,
+      y: 0,
+    };
 
     const localPlayer = {
       x: WORLD_WIDTH / 2,
@@ -63,17 +77,90 @@ export default function Game() {
       keys[e.key.toLowerCase()] = false;
     }
 
+    function updateTouchInput(e: PointerEvent) {
+      if (!touchInput.active || e.pointerId !== touchInput.pointerId) {
+        return;
+      }
+
+      touchInput.x = e.clientX;
+      touchInput.y = e.clientY;
+    }
+
+    function startTouchInput(e: PointerEvent) {
+      if (e.pointerType !== "touch" || touchInput.active) {
+        return;
+      }
+
+      touchInput.active = true;
+      touchInput.pointerId = e.pointerId;
+      touchInput.originX = e.clientX;
+      touchInput.originY = e.clientY;
+      touchInput.x = e.clientX;
+      touchInput.y = e.clientY;
+
+      canvas.setPointerCapture(e.pointerId);
+    }
+
+    function endTouchInput(e: PointerEvent) {
+      if (e.pointerId !== touchInput.pointerId) {
+        return;
+      }
+
+      canvas.releasePointerCapture(e.pointerId);
+      touchInput.active = false;
+      touchInput.pointerId = -1;
+    }
+
     window.addEventListener("keydown", keyDown);
     window.addEventListener("keyup", keyUp);
+    canvas.addEventListener("pointerdown", startTouchInput);
+    canvas.addEventListener("pointermove", updateTouchInput);
+    canvas.addEventListener("pointerup", endTouchInput);
+    canvas.addEventListener("pointercancel", endTouchInput);
 
-    const playerImage = new Image();
-    playerImage.src = "/assets/sprites/cat-removebg-preview.png";
+    window.addEventListener("pointerdown", (e) => {
+      if (e.button === 0 && cooldown <= 0) {
+        attackTime = ATTACK_DURATION;
+        cooldown = COOLDOWN_TIME;
+      }
+    });
+
+    const pointer = {
+      x: 0,
+      y: 0,
+    };
+
+    canvas.addEventListener("pointermove", (e) => {
+      const rect = canvas.getBoundingClientRect();
+
+      pointer.x = e.clientX - rect.left;
+      pointer.y = e.clientY - rect.top;
+    });
+
+    function takeDamage(amount: number) {
+      health -= amount;
+      if (health < 0) health = 0;
+    }
 
     let last = performance.now();
+    const maxTouchDistance = 90;
+    const touchDeadzone = 8;
+
+    let attackTime = 0;
+    let cooldown = 0;
+
+    const ATTACK_DURATION = 0.15; // seconds
+    const COOLDOWN_TIME = 0.5;    // seconds
 
     function loop(now: number) {
       const dt = (now - last) / 1000;
       last = now;
+
+      attackTime -= dt;
+      cooldown -= dt;
+
+      if (attackTime < 0) attackTime = 0;
+      if (cooldown < 0) cooldown = 0;
 
       let dx = 0;
       let dy = 0;
@@ -82,6 +169,22 @@ export default function Game() {
       if (keys["s"] || keys["arrowdown"]) dy++;
       if (keys["a"] || keys["arrowleft"]) dx--;
       if (keys["d"] || keys["arrowright"]) dx++;
+
+      if (touchInput.active) {
+        const touchDx = touchInput.x - touchInput.originX;
+        const touchDy = touchInput.y - touchInput.originY;
+        const touchDistance = Math.hypot(touchDx, touchDy);
+
+        if (touchDistance > touchDeadzone) {
+          const touchStrength = Math.min(
+            1,
+            (touchDistance - touchDeadzone) / (maxTouchDistance - touchDeadzone)
+          );
+
+          dx += (touchDx / touchDistance) * touchStrength;
+          dy += (touchDy / touchDistance) * touchStrength;
+        }
+      }
 
       // Normalize diagonal movement
       if (dx !== 0 || dy !== 0) {
@@ -129,6 +232,9 @@ export default function Game() {
         Math.min(WORLD_HEIGHT - height, localPlayer.y - height / 2)
       );
 
+      const pointerWorldX = pointer.x + cameraX;
+      const pointerWorldY = pointer.y + cameraY;
+
       // Background
       ctx.fillStyle = "#181818";
       ctx.fillRect(0, 0, width, height);
@@ -166,28 +272,71 @@ export default function Game() {
         WORLD_HEIGHT
       );
 
-      // Draw local player
-      if (playerImage.complete) {
-        ctx.drawImage(
-          playerImage,
-          localPlayer.x - PLAYER_SIZE / 2 - cameraX,
-          localPlayer.y - PLAYER_SIZE / 2 - cameraY,
-          PLAYER_SIZE,
-          PLAYER_SIZE
-        );
+      // display playername under neath image
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "16px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText(playerName, player.x - cameraX, player.y - PLAYER_SIZE / 2 - cameraY - 10);
 
-        // Draw remote players
-        for (const uuid in players) {
-          const p = players[uuid];
-          ctx.drawImage(
-            playerImage,
-            p.x - PLAYER_SIZE / 2 - cameraX,
-            p.y - PLAYER_SIZE / 2 - cameraY,
-            PLAYER_SIZE,
-            PLAYER_SIZE
-          );
-        }
+      // draw health and shield bar BELOW player image, and make them filled up based on a variable
+
+      ctx.fillStyle = "#ff0000";
+      ctx.fillRect(player.x - cameraX - 50, player.y + PLAYER_SIZE / 2 - cameraY + 10, health, 10);
+
+      const playerImage = new Image();
+      // playerImage.src = "/assets/sprites/cat-removebg-preview.png";
+      // depends based on shark boolean
+      playerImage.src = shark ? "/assets/sprites/cat-removebg-preview.png"
+        : "/assets/sprites/shark-removebg-preview.png";
+      playerImage.width = PLAYER_SIZE;
+      playerImage.height = PLAYER_SIZE;
+
+      ctx.drawImage(
+        playerImage,
+        player.x - PLAYER_SIZE / 2 - cameraX,
+        player.y - PLAYER_SIZE / 2 - cameraY,
+        PLAYER_SIZE,
+        PLAYER_SIZE
+      );
+
+      if (keys[" "]) {
+        // show shield (rectangle)
+
+        ctx.fillStyle = "rgba(0, 255, 255, 0.5)";
+        ctx.fillRect(
+          player.x - cameraX - PLAYER_SIZE / 2 - 10,
+          player.y - cameraY - PLAYER_SIZE / 2 - 10,
+          PLAYER_SIZE + 20,
+          PLAYER_SIZE + 20
+        );
       }
+
+      if (attackTime > 0) {
+        const screenPlayerX = player.x - cameraX;
+        const screenPlayerY = player.y - cameraY;
+
+        const dx = pointer.x - screenPlayerX;
+        const dy = pointer.y - screenPlayerY;
+
+        const length = Math.hypot(dx, dy);
+
+        const dirX = dx / length;
+        const dirY = dy / length;
+
+        const attackLength = 300;
+
+        ctx.strokeStyle = "#ffaa00";
+        ctx.lineWidth = 4;
+
+        ctx.beginPath();
+        ctx.moveTo(screenPlayerX + dirX * 50, screenPlayerY + dirY * 50);
+        ctx.lineTo(
+          screenPlayerX + dirX * attackLength,
+          screenPlayerY + dirY * attackLength
+        );
+        ctx.stroke();
+      }
+
 
       requestAnimationFrame(loop);
     }
@@ -198,7 +347,10 @@ export default function Game() {
       window.removeEventListener("resize", resize);
       window.removeEventListener("keydown", keyDown);
       window.removeEventListener("keyup", keyUp);
-      channel.unsubscribe();
+      canvas.removeEventListener("pointerdown", startTouchInput);
+      canvas.removeEventListener("pointermove", updateTouchInput);
+      canvas.removeEventListener("pointerup", endTouchInput);
+      canvas.removeEventListener("pointercancel", endTouchInput);
     };
   }, []);
 
@@ -209,6 +361,7 @@ export default function Game() {
         display: "block",
         width: "100vw",
         height: "100vh",
+        touchAction: "none",
       }}
     />
   );
