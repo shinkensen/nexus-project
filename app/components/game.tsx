@@ -90,7 +90,7 @@ export default function Game() {
       );
 
       const cameraY = Math.max(
-        0,
+        0,x
         Math.min(WORLD_HEIGHT - height, player.y - height / 2)
       );
 
