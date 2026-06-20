@@ -6,7 +6,7 @@ const WORLD_WIDTH = 3000;
 const WORLD_HEIGHT = 3000;
 
 const PLAYER_SIZE = 100;
-const PLAYER_SPEED = 350; // pixels/sec
+const PLAYER_SPEED = 1000; // pixels/sec
 
 export default function Game() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -90,7 +90,7 @@ export default function Game() {
       );
 
       const cameraY = Math.max(
-        0,x
+        0,
         Math.min(WORLD_HEIGHT - height, player.y - height / 2)
       );
 
