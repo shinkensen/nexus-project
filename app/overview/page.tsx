@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "../backend/supabase";
+import { getTeamGold } from "../backend/funcs";
 
 export const WORLD_WIDTH = 3000;
 export const WORLD_HEIGHT = 3000;
@@ -23,6 +24,8 @@ export default function Overview() {
 
     // Current players from Supabase
     const [players, setPlayers] = useState<Player[]>([]);
+    const [sharkGold, setSharkGold] = useState(0);
+    const [catGold, setCatGold] = useState(0);
 
     // Refs so the render loop always has the newest values without restarting
     const playersRef = useRef<Player[]>([]);
@@ -79,6 +82,18 @@ export default function Overview() {
 
         loadPlayers();
 
+        async function loadGold() {
+            const [sharks, cats] = await Promise.all([
+                getTeamGold(true),
+                getTeamGold(false),
+            ]);
+
+            setSharkGold(sharks ?? 0);
+            setCatGold(cats ?? 0);
+        }
+
+        loadGold();
+
         const channel = supabase
             .channel("overview-game-realtime")
             .on(
@@ -126,9 +141,39 @@ export default function Overview() {
                 console.log("Supabase channel status:", status);
             });
 
+        const goldChannel = supabase
+            .channel("overview-teams-realtime")
+            .on(
+                "postgres_changes",
+                {
+                    event: "*",
+                    schema: "public",
+                    table: "teams",
+                },
+                (payload) => {
+                    console.log("Teams change:", payload);
+                    if (payload.eventType === "UPDATE") {
+                        const team = payload.new.team;
+                        const gold = payload.new.gold;
+
+                        if (team === "sharks") {
+                            setSharkGold(gold);
+                            console.log("Updated sharks gold:", gold);
+                        } else if (team === "cats") {
+                            setCatGold(gold);
+                            console.log("Updated cats gold:", gold);
+                        }
+                    }
+                }
+            )
+            .subscribe((status) => {
+                console.log("Supabase teams channel status:", status);
+            });
+
         return () => {
             mounted = false;
             supabase.removeChannel(channel);
+            supabase.removeChannel(goldChannel);
         };
     }, []);
 
@@ -152,17 +197,17 @@ export default function Overview() {
         };
 
         const drawGrid = () => {
-        const map = imagesRef.current.map;
-        if (!map) return;
+            const map = imagesRef.current.map;
+            if (!map) return;
 
-        if (map.complete) {
-            // scale the whole map image to fit the canvas
-            ctx.drawImage(map, 0, 0, canvas.width, canvas.height);
-        } else {
-            ctx.fillStyle = "white";
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-        }
-    };
+            if (map.complete) {
+                // scale the whole map image to fit the canvas
+                ctx.drawImage(map, 0, 0, canvas.width, canvas.height);
+            } else {
+                ctx.fillStyle = "white";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+        };
         const drawPlayer = (player: Player) => {
             const { cat, shark, shield } = imagesRef.current;
 
@@ -217,6 +262,17 @@ export default function Overview() {
             for (const player of playersRef.current) {
                 drawPlayer(player);
             }
+
+            ctx.fillText(
+                `Sharks Gold: ${getTeamGold(true)}`,
+                10,
+                canvas.height - 20
+            );
+            ctx.fillText(
+                `Cats Gold: ${getTeamGold(false)}`,
+                canvas.width - 100,
+                canvas.height - 20
+            );  
 
             animationFrameId = requestAnimationFrame(render);
         };
