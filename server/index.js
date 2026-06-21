@@ -70,8 +70,10 @@ function createPlayer(id, name) {
   return {
     id,
     name,
-    x: (WORLD_W / 4 + (Math.random() - 0.5) * 2000) + ((WORLD_W * 3) / 4 + (Math.random() - 0.5) * 2000),
-    y: (WORLD_H / 4 + (Math.random() - 0.5) * 2000) + ((WORLD_H * 3) / 4 + (Math.random() - 0.5) * 2000),
+    // x: (WORLD_W / 4 + (Math.random() - 0.5) * 2000) + ((WORLD_W * 3) / 4 + (Math.random() - 0.5) * 2000),
+    // y: (WORLD_H / 4 + (Math.random() - 0.5) * 2000) + ((WORLD_H * 3) / 4 + (Math.random() - 0.5) * 2000),
+    x: 100,
+    y: 100,
     dx: 0,
     dy: 0,
     angle: 0,
@@ -104,43 +106,50 @@ io.onConnection((channel) => {
       console.log(`[SERVER LOG] Input received from ID: ${channel.id} but player is not in active players list.`);
       return;
     }
-    p.dx = data.dx;
-    p.dy = data.dy;
+
+    p.dx = data?.dx ?? 0;
+    p.dy = data?.dy ?? 0;
+
+    const len = Math.hypot(p.dx, p.dy);
+    if (len > 0.01) {
+      p.angle = Math.atan2(p.dy, p.dx);
+    }
   });
+});
 
-  channel.on("attack", (data) => {
-    const p = WORLD.players.get(channel.id);
-    if (!p) return;
+channel.on("attack", (data) => {
+  const p = WORLD.players.get(channel.id);
+  if (!p) return;
 
-    const attack = {
-      id: crypto.randomUUID?.() ?? Math.random().toString(36).slice(2),
-      attackerId: channel.id,
-      x: p.x,
-      y: p.y,
-      // angle: data.angle, // radians
-      angle: 0,
-      timestamp: Date.now(),
-    };
+  const attack = {
+    id: crypto.randomUUID?.() ?? Math.random().toString(36).slice(2),
+    attackerId: channel.id,
+    x: p.x,
+    y: p.y,
+    // angle: data.angle, // radians
+    angle: 0,
+    timestamp: Date.now(),
+  };
 
-    WORLD.attacks.set(attack.id, attack);
-    console.log(`[SERVER LOG] Attack registered from player: ${p.name}`);
+  WORLD.attacks.set(attack.id, attack);
+  console.log(`[SERVER LOG] Attack registered from player: ${p.name}`);
 
-    // broadcast instantly
-    io.emit("attack", attack);
-  });
+  // broadcast instantly
+  io.emit("attack", attack);
+});
 
-  channel.on("shield", (data) => {
-    const p = WORLD.players.get(channel.id);
-    if (!p) return;
+channel.on("shield", (data) => {
+  const p = WORLD.players.get(channel.id);
+  if (!p) return;
 
-    p.shield = !!data.shield;
-  });
+  p.shield = !!data.shield;
+});
 
-  channel.onDisconnect(() => {
-    console.log(`[SERVER LOG] Channel disconnected. ID: ${channel.id}`);
-    WORLD.players.delete(channel.id);
-    console.log(`[SERVER LOG] Active Players count: ${WORLD.players.size}`);
-  });
+channel.onDisconnect(() => {
+  console.log(`[SERVER LOG] Channel disconnected. ID: ${channel.id}`);
+  WORLD.players.delete(channel.id);
+  console.log(`[SERVER LOG] Active Players count: ${WORLD.players.size}`);
+});
 });
 
 // -------------------- GAME LOOP --------------------
