@@ -12,8 +12,8 @@ export const PLAYER_SPEED = 1000;
 const ATTACK_COOLDOWN_TIME = 4; 
 const SHIELD_COOLDOWN_TIME = 3;
 
-const SHIELD_GAMMA_THRESHOLD = 7;
-const SHIELD_Y_THRESHOLD = 7;
+const SHIELD_BETA_THRESHOLD = 10;
+const SHIELD_Y_THRESHOLD = 80;
 const SHIELD_DURATION = 3000;
 const BURN_DURATION = 1000;
 
@@ -35,6 +35,11 @@ type DebugSnapshot = {
   accelXDelta: number;
   accelYDelta: number;
   accelZDelta: number;
+  attackMagnitude: number;
+  attackDirection: number | null;
+  attackVectorX: number;
+  attackVectorY: number;
+  attackTriggered: boolean;
   shieldActive: boolean;
   lastTrigger: number | null;
   fps: number;
@@ -51,6 +56,11 @@ const EMPTY_DEBUG: DebugSnapshot = {
   accelXDelta: 0,
   accelYDelta: 0,
   accelZDelta: 0,
+  attackMagnitude: 0,
+  attackDirection: null,
+  attackVectorX: 0,
+  attackVectorY: 0,
+  attackTriggered: false,
   shieldActive: false,
   lastTrigger: null,
   fps: 0,
@@ -61,6 +71,12 @@ const EMPTY_DEBUG: DebugSnapshot = {
 function fmt(n: number | undefined | null, digits = 2) {
   if (n === undefined || n === null || Number.isNaN(n)) return "—";
   return n.toFixed(digits);
+}
+
+function normalizeRadians(angle: number) {
+  const tau = Math.PI * 2;
+  const wrapped = ((angle + Math.PI) % tau + tau) % tau;
+  return wrapped - Math.PI;
 }
 
 export default function Game({
@@ -221,6 +237,11 @@ export default function Game({
       accelXDelta: 0,
       accelYDelta: 0,
       accelZDelta: 0,
+      attackMagnitude: 0,
+      attackDirection: null as number | null,
+      attackVectorX: 0,
+      attackVectorY: 0,
+      attackTriggered: false,
       shieldActive: false,
       lastTrigger: null as number | null,
       fps: 0,
@@ -231,6 +252,10 @@ export default function Game({
       const currentMotion = debugRef.current.motion;
 
       if (!currentOrientation || !currentMotion) return;
+
+      const motionDeltaX = prevMotionX !== null ? currentMotion.x - prevMotionX : 0;
+      const motionDeltaY = prevMotionY !== null ? currentMotion.y - prevMotionY : 0;
+      const motionDeltaZ = prevMotionZ !== null ? currentMotion.z - prevMotionZ : 0;
 
 
       if (
@@ -244,9 +269,9 @@ export default function Game({
         const alphaDelta = Math.abs(currentOrientation.alpha - prevAlpha);
         const betaDelta = Math.abs(currentOrientation.beta - prevBeta);
         const gammaDelta = Math.abs(currentOrientation.gamma - prevGamma);
-        const accelXDelta = Math.abs(currentMotion.x - prevMotionX);
-        const accelYDelta = Math.abs(currentMotion.y - prevMotionY);
-        const accelZDelta = Math.abs(currentMotion.z - prevMotionZ);
+        const accelXDelta = Math.abs(motionDeltaX);
+        const accelYDelta = Math.abs(motionDeltaY);
+        const accelZDelta = Math.abs(motionDeltaZ);
 
         debugStats.alphaDelta = alphaDelta;
         debugStats.betaDelta = betaDelta;
@@ -254,9 +279,10 @@ export default function Game({
         debugStats.accelXDelta = accelXDelta;
         debugStats.accelYDelta = accelYDelta;
         debugStats.accelZDelta = accelZDelta;
+        debugStats.attackTriggered = false;
         
         // shield detection
-        if (gammaDelta >= SHIELD_GAMMA_THRESHOLD && accelYDelta >= SHIELD_Y_THRESHOLD) {
+        if (betaDelta >= SHIELD_BETA_THRESHOLD && accelZDelta >= SHIELD_Y_THRESHOLD) {
           const playerUuid = localStorage.getItem("player_uuid");
           if (playerUuid) {
 
@@ -277,21 +303,32 @@ export default function Game({
 
         }
 
-        else if (currentOrientation.gamma < 2 && currentOrientation.gamma > -2){
-          //attack cast, phone has to be flat to cast a spell
+        // attack detection
+        else {
+          const attackMagnitude = Math.hypot(motionDeltaX, motionDeltaY, motionDeltaZ);
+          debugStats.attackMagnitude = attackMagnitude;
 
-          if (currentMotion.x - prevMotionX >= ATTACK_ACCEL_THRESHOLD){
-            //forward attack
+          if (attackMagnitude >= ATTACK_ACCEL_THRESHOLD) {
+            const alphaRadians = currentOrientation.alpha * (Math.PI / 180);
+            const gyroX = Math.sin(currentOrientation.gamma * (Math.PI / 180));
+            const gyroY = Math.sin(currentOrientation.beta * (Math.PI / 180));
+            const attackVectorX = motionDeltaX + gyroX;
+            const attackVectorY = motionDeltaY + gyroY;
+            const attackDirection = normalizeRadians(
+              Math.atan2(attackVectorY, attackVectorX) + alphaRadians
+            );
+            debugStats.attackDirection = attackDirection;
+            debugStats.attackVectorX = attackVectorX;
+            debugStats.attackVectorY = attackVectorY;
+            debugStats.attackTriggered = true;
 
-            addAttack(localStorage.getItem("player_uuid"), { x: dx, y: dy })
+            const playerUuid = localStorage.getItem("player_uuid");
+            if (playerUuid) {
+              addAttack(playerUuid, { x: dx, y: dy }, Date.now(), attackDirection);
+            }
+
             return;
           }
-          if (currentMotion.x - prevMotionX <= ATTACK_ACCEL_THRESHOLD){
-            //backward attack
-            return;
-          }
-
-
         }
       }
 
@@ -386,6 +423,11 @@ export default function Game({
         accelXDelta: debugStats.accelXDelta,
         accelYDelta: debugStats.accelYDelta,
         accelZDelta: debugStats.accelZDelta,
+        attackMagnitude: debugStats.attackMagnitude,
+        attackDirection: debugStats.attackDirection,
+        attackVectorX: debugStats.attackVectorX,
+        attackVectorY: debugStats.attackVectorY,
+        attackTriggered: debugStats.attackTriggered,
         shieldActive: debugStats.shieldActive,
         lastTrigger: debugStats.lastTrigger,
         fps: debugStats.fps,
@@ -495,16 +537,27 @@ export default function Game({
           <div>accelYDelta: {fmt(debugData.accelYDelta)}</div>
           <div>accelZDelta: {fmt(debugData.accelZDelta)}</div>
 
+          <div style={{ color: "#718096", marginTop: 6 }}>ATTACK DETECTION</div>
+          <div>magnitude: {fmt(debugData.attackMagnitude)}</div>
+          <div>vectorX: {fmt(debugData.attackVectorX)}</div>
+          <div>vectorY: {fmt(debugData.attackVectorY)}</div>
+          <div>
+            direction: {debugData.attackDirection === null ? "—" : `${fmt(debugData.attackDirection, 3)} rad`}
+          </div>
+          <div>
+            fired: {debugData.attackTriggered ? "YES" : "no"}
+          </div>
+
           <div style={{ color: "#718096", marginTop: 6 }}>SHIELD DETECTION</div>
           <div>
-            gammaDelta: {fmt(debugData.gammaDelta)}{" "}
-            <span style={{ color: debugData.gammaDelta > SHIELD_GAMMA_THRESHOLD ? "#f6ad55" : "#4a5568" }}>
-              (thr {SHIELD_GAMMA_THRESHOLD})
+            betaDelta: {fmt(debugData.betaDelta)}{" "}
+            <span style={{ color: debugData.betaDelta > SHIELD_BETA_THRESHOLD ? "#f6ad55" : "#4a5568" }}>
+              (thr {SHIELD_BETA_THRESHOLD})
             </span>
           </div>
           <div>
-            accelYDelta: {fmt(debugData.accelYDelta)}{" "}
-            <span style={{ color: debugData.accelYDelta > SHIELD_Y_THRESHOLD ? "#f6ad55" : "#4a5568" }}>
+            accelZDelta: {fmt(debugData.accelZDelta)}{" "}
+            <span style={{ color: debugData.accelZDelta > SHIELD_Y_THRESHOLD ? "#f6ad55" : "#4a5568" }}>
               (thr {SHIELD_Y_THRESHOLD})
             </span>
           </div>
