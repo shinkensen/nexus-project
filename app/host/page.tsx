@@ -8,12 +8,10 @@ export default function Host() {
     const playersRef = useRef<any[]>([]);
     const fxRef = useRef<any[]>([]);
 
+    const WORLD_SCALE = 0.1;
+
     useEffect(() => {
         const socket = io("http://localhost:3001");
-
-        socket.on("connect", () => {
-            console.log("connected to server");
-        });
 
         socket.on("state", (state) => {
             playersRef.current = state.players;
@@ -21,18 +19,12 @@ export default function Host() {
 
         socket.on("attack_fx", (fx) => {
             fxRef.current.push({
-                x: fx.x,
-                y: fx.y,
-                angle: fx.angle,
+                ...fx,
                 t: 0,
             });
-
-            console.log("FX RECEIVED", fx);
         });
 
-        return () => {
-            socket.disconnect();
-        };
+        return () => { socket.disconnect(); };
     }, []);
 
     useEffect(() => {
@@ -50,8 +42,11 @@ export default function Host() {
         let last = performance.now();
 
         const MAX_TIME = 0.25;
-        const RANGE = 400 * 0.25;
-        const spread = Math.PI / 3;
+
+        const ATTACK_RANGE_WORLD = 3000;
+        const ATTACK_RANGE_SCREEN = ATTACK_RANGE_WORLD * WORLD_SCALE;
+
+        const ATTACK_ANGLE = Math.PI / 6;
 
         function updateFX(dt: number) {
             for (const fx of fxRef.current) {
@@ -74,26 +69,29 @@ export default function Host() {
             ctx.fillStyle = "#111";
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // players
+            // ===== players =====
             for (const p of playersRef.current) {
                 ctx.fillStyle = "white";
                 ctx.beginPath();
-                ctx.arc(p.x * 0.1, p.y * 0.1, 10, 0, Math.PI * 2);
+                ctx.arc(
+                    p.x * WORLD_SCALE,
+                    p.y * WORLD_SCALE,
+                    10,
+                    0,
+                    Math.PI * 2
+                );
                 ctx.fill();
             }
 
-            const SCALE = 0.1;
-            const RANGE = 4000 * SCALE;
-            const spread = Math.PI / 3;
-
+            // ===== attack FX =====
             for (const fx of fxRef.current) {
                 const progress = fx.t / MAX_TIME;
                 const alpha = 1 - progress;
 
-                const x = fx.x * SCALE;
-                const y = fx.y * SCALE;
+                const x = fx.x * WORLD_SCALE;
+                const y = fx.y * WORLD_SCALE;
 
-                ctx.fillStyle = `rgba(255, 80, 80, ${alpha * 0.35})`;
+                ctx.fillStyle = `rgba(255,80,80,${alpha * 0.35})`;
 
                 ctx.beginPath();
                 ctx.moveTo(x, y);
@@ -101,11 +99,11 @@ export default function Host() {
                 for (let i = 0; i <= 12; i++) {
                     const a =
                         fx.angle -
-                        spread / 2 +
-                        (spread * i) / 12;
+                        ATTACK_ANGLE / 2 +
+                        (ATTACK_ANGLE * i) / 12;
 
-                    const px = x + Math.cos(a) * RANGE;
-                    const py = y + Math.sin(a) * RANGE;
+                    const px = x + Math.cos(a) * ATTACK_RANGE_SCREEN;
+                    const py = y + Math.sin(a) * ATTACK_RANGE_SCREEN;
 
                     ctx.lineTo(px, py);
                 }
