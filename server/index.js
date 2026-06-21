@@ -9,6 +9,11 @@ const io = geckos({
 });
 io.addServer(server);
 
+// Friendly root page route
+app.get("/", (req, res) => {
+  res.send("Game server is running successfully!");
+});
+
 const TICK_RATE = 60;
 const ATTACK_RADIUS = 120;
 
