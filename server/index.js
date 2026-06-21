@@ -9,6 +9,8 @@ const io = new Server(server, {
 });
 
 const TICK_RATE = 60;
+
+const SPEED = 3000;
 const ATTACK_RANGE = 400;
 const ATTACK_ANGLE = Math.PI / 3; // 60°
 
@@ -25,8 +27,7 @@ function createPlayer(id) {
     dx: 0,
     dy: 0,
 
-    facingX: 1,
-    facingY: 0,
+    angle: 0,
 
     shield: false,
     attackRequested: false,
@@ -36,7 +37,14 @@ function createPlayer(id) {
   };
 }
 
-// INPUT from controllers
+function angleDiff(a, b) {
+  let d = a - b;
+  while (d > Math.PI) d -= 2 * Math.PI;
+  while (d < -Math.PI) d += 2 * Math.PI;
+  return Math.abs(d);
+}
+
+// INPUT
 io.on("connection", (socket) => {
   console.log("connected:", socket.id);
 
@@ -48,32 +56,37 @@ io.on("connection", (socket) => {
 
     p.dx = data.dx;
     p.dy = data.dy;
-  });
 
-  socket.on("disconnect", () => {
-    WORLD.players.delete(socket.id);
+    // update facing angle from movement
+    if (Math.hypot(data.dx, data.dy) > 0.01) {
+      p.angle = Math.atan2(data.dy, data.dx);
+    }
   });
 
   socket.on("attack", () => {
     const p = WORLD.players.get(socket.id);
     if (!p || !p.alive) return;
-
     p.attackRequested = true;
+    console.log(`${socket.id} attacked`);
   });
 
   socket.on("shield", (enabled) => {
     const p = WORLD.players.get(socket.id);
     if (!p || !p.alive) return;
-
     p.shield = enabled;
+    console.log(`${socket.id} shield: ${enabled}`);
+  });
+
+  socket.on("disconnect", () => {
+    WORLD.players.delete(socket.id);
   });
 });
 
 // GAME LOOP
 setInterval(() => {
   const dt = 1 / TICK_RATE;
-  const SPEED = 3000;
 
+  // movement + respawn
   for (const p of WORLD.players.values()) {
     if (!p.alive) {
       p.respawnTimer -= dt;
@@ -82,53 +95,54 @@ setInterval(() => {
         p.alive = true;
         p.x = 1500;
         p.y = 1500;
+        p.dx = 0;
+        p.dy = 0;
       }
 
       continue;
     }
 
-    const len = Math.hypot(p.dx, p.dy) || 1;
+    const len = Math.hypot(p.dx, p.dy);
 
-    const nx = p.dx / len;
-    const ny = p.dy / len;
+    if (len > 0.0001) {
+      const nx = p.dx / len;
+      const ny = p.dy / len;
 
-    p.x += nx * SPEED * dt;
-    p.y += ny * SPEED * dt;
+      p.x += nx * SPEED * dt;
+      p.y += ny * SPEED * dt;
+    }
   }
 
+  // combat
   for (const attacker of WORLD.players.values()) {
-    if (!attacker.attackRequested || !attacker.alive)
-      continue;
+    if (!attacker.attackRequested || !attacker.alive) continue;
 
     attacker.attackRequested = false;
+
+    io.emit("attack_fx", {
+      x: attacker.x,
+      y: attacker.y,
+      angle: attacker.angle,
+    });
 
     for (const victim of WORLD.players.values()) {
       if (victim === attacker) continue;
       if (!victim.alive) continue;
       if (victim.shield) continue;
 
-      const vx = victim.x - attacker.x;
-      const vy = victim.y - attacker.y;
+      const dx = victim.x - attacker.x;
+      const dy = victim.y - attacker.y;
 
-      const dist = Math.hypot(vx, vy);
+      const dist = Math.hypot(dx, dy);
+      if (dist > ATTACK_RANGE) continue;
 
-      if (dist > ATTACK_RANGE)
-        continue;
+      const targetAngle = Math.atan2(dy, dx);
 
-      const dirX = vx / dist;
-      const dirY = vy / dist;
+      const diff = angleDiff(attacker.angle, targetAngle);
 
-      const dot =
-        dirX * attacker.facingX +
-        dirY * attacker.facingY;
-
-      const angle = Math.acos(
-        Math.max(-1, Math.min(1, dot))
-      );
-
-      if (angle <= ATTACK_ANGLE / 2) {
+      if (diff <= ATTACK_ANGLE / 2) {
         victim.alive = false;
-        victim.respawnTimer = 2; // seconds
+        victim.respawnTimer = 2;
       }
     }
   }
