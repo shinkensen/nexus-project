@@ -119,6 +119,8 @@ export default function Controller() {
             if (betaDelta >= SHIELD_BETA_THRESHOLD && accelZDelta >= SHIELD_Z_THRESHOLD) {
                 triggerShield();
             } else if (betaDelta <= 2) {
+                // Phone is roughly flat — check for a directional shake/attack.
+                // `direction` is left as a plain string for the backend to parse.
                 let direction: string | null = null;
 
                 if (motionDeltaZ > ATTACK_THRESHOLD) {
@@ -145,6 +147,8 @@ export default function Controller() {
         prev.motionZ = currentMotion.z;
     }
 
+    // Poll the gyro/accel handler on its own interval, independent of the
+    // joystick input stream, for as long as we're connected.
     useEffect(() => {
         if (!joined) return;
 
@@ -152,6 +156,7 @@ export default function Controller() {
         return () => clearInterval(gyroInterval);
     }, [joined]);
 
+    // Clean up any pending shield-release timer on unmount.
     useEffect(() => {
         return () => {
             if (shieldTimeoutRef.current) clearTimeout(shieldTimeoutRef.current);
