@@ -159,8 +159,11 @@ setInterval(() => {
   for (const p of players) {
     if (p.alive) {
       const len = Math.hypot(p.dx, p.dy) || 1;
-      p.x += (p.dx / len) * SPEED * dt;
-      p.y += (p.dy / len) * SPEED * dt;
+
+      if (!p.shield) {
+        p.x += (p.dx / len) * SPEED * dt;
+        p.y += (p.dy / len) * SPEED * dt;
+      }
 
       if (p.x < 0) p.x = 0;
       if (p.y < 0) p.y = 0;
@@ -168,18 +171,18 @@ setInterval(() => {
       if (p.y > WORLD_H) p.y = WORLD_H;
 
       // drain gold in end zone and transfer once in team zone
-      if (p.shark && p.x > 13500 && WORLD.teams.cat.gold > 0) {
+      if (p.shark && p.x > 13500 && WORLD.teams.cat.gold > 0 && !p.shield) {
         p.gold++;
         WORLD.teams.cat.gold--;
-      } else if (!p.shark && p.x < 3200 && WORLD.teams.shark.gold > 0) {
+      } else if (!p.shark && p.x < 3200 && WORLD.teams.shark.gold > 0 && !p.shield) {
         p.gold++;
         WORLD.teams.shark.gold--;
       }
 
-      if(p.shark && p.x < 3200) {
+      if (p.shark && p.x < 3200) {
         WORLD.teams.shark.gold += p.gold;
         p.gold = 0;
-      } else if(!p.shark && p.x > 13500) {
+      } else if (!p.shark && p.x > 13500) {
         WORLD.teams.cat.gold += p.gold;
         p.gold = 0;
       }
@@ -237,7 +240,7 @@ setInterval(() => {
     if (!p.alive && p.respawnTimer <= 0) {
       p.alive = true;
 
-      if(p.shark) {
+      if (p.shark) {
         p.x = WORLD_W / 4 + (Math.random() - 0.5) * WORLD_W / 4;
       } else {
         p.x = (WORLD_W * 3) / 4 + (Math.random() - 0.5) * WORLD_W / 4;
