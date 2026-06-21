@@ -172,6 +172,7 @@ setInterval(() => {
 
     for (const victim of players) {
       if (victim === attacker || !victim.alive || victim.shield) continue;
+      if (victim.shark === attacker.shark) continue; // dont attack same team
 
       const dx = victim.x - attacker.x;
       const dy = victim.y - attacker.y;
