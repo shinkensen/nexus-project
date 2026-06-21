@@ -32,7 +32,9 @@ export default function Host() {
       attacksRef.current = state.attacks;
     });
 
-    return () => socket.disconnect();
+    return () => {
+      socket.disconnect();
+    };
   }, []);
 
   useEffect(() => {
