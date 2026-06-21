@@ -13,11 +13,11 @@ function clampJoystick(dx: number, dy: number, max: number) {
 
 // phone controls
 
-const SHIELD_BETA_THRESHOLD = 45;
+const SHIELD_BETA_THRESHOLD = 25;
 const SHIELD_Z_THRESHOLD = 30;
 const SHIELD_DURATION = 3000;
 
-const ATTACK_THRESHOLD = 5;
+const ATTACK_THRESHOLD = 8;
 const ATTACK_COOLDOWN_TIME = 300;
 const GYRO_POLL_MS = 50;
 
@@ -268,9 +268,12 @@ export default function Controller() {
             const accelZDelta = Math.abs(motionDeltaZ);
             const accelYDelta = Math.abs(motionDeltaY);
             
-            if (motionDeltaZ >= ATTACK_THRESHOLD) {
-                triggerAttack();
+            if (betaDelta <= 4) {
+                if (motionDeltaZ > ATTACK_THRESHOLD) {
+                    triggerAttack();
+                }
             }
+            // else if (betaDelta >= SHIELD_BETA_THRESHOLD && accelZDelta >= SHIELD_Z_THRESHOLD) {
             else if (gammaDelta >= SHIELD_BETA_THRESHOLD ) {
                 triggerShield();
             }
