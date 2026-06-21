@@ -66,6 +66,8 @@ export default function Host() {
         catImg.src = "/assets/sprites/cat-removebg-preview.png";
         const sharkImg = new Image();
         sharkImg.src = "/assets/sprites/shark-removebg-preview.png";
+        const shieldImg = new Image();
+        shieldImg.src = "/assets/objects/box-removebg-preview.png";
 
         function resize() {
             canvas.width = window.innerWidth;
@@ -94,17 +96,13 @@ export default function Host() {
                 const py = p.y * WORLD_SCALE;
 
                 // Draw sprite (cat or shark)
-                const img = p.shark ? sharkImg : catImg;
-                ctx.drawImage(img, px - SPRITE_SIZE / 2, py - SPRITE_SIZE / 2, SPRITE_SIZE, SPRITE_SIZE);
+                let img = p.shark ? sharkImg : catImg;
 
-                // Shield indicator
                 if (p.shield) {
-                    ctx.strokeStyle = "rgba(0, 188, 212, 0.8)";
-                    ctx.lineWidth = 3;
-                    ctx.beginPath();
-                    ctx.arc(px, py, SPRITE_SIZE / 2 + 6, 0, Math.PI * 2);
-                    ctx.stroke();
+                    img = shieldImg;
                 }
+
+                ctx.drawImage(img, px - SPRITE_SIZE / 2, py - SPRITE_SIZE / 2, SPRITE_SIZE, SPRITE_SIZE);
 
                 // Player name
                 ctx.fillStyle = "#ffffff";
