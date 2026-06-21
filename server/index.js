@@ -44,6 +44,15 @@ const WORLD = {
 };
 
 function createPlayer(id, name) {
+  let shark = 0,cat=0;
+  for (const p of WORLD.players.values()) {
+    if (p.shark){
+      shark++;
+    }
+    else{
+      cat++;
+    }
+  }
   return {
     id,
     name,
@@ -52,7 +61,7 @@ function createPlayer(id, name) {
     dx: 0,
     dy: 0,
     angle: 0,
-    shark: Math.random() < 0.5,
+    shark: shark < cat ? true : false,
     shield: false,
     attackRequested: false,
     alive: true,

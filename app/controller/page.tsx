@@ -268,12 +268,9 @@ export default function Controller() {
             const accelZDelta = Math.abs(motionDeltaZ);
             const accelYDelta = Math.abs(motionDeltaY);
             
-            if (betaDelta <= 6) {
-                if (motionDeltaZ >= ATTACK_THRESHOLD) {
-                    triggerAttack();
-                }
+            if (motionDeltaZ >= ATTACK_THRESHOLD) {
+                triggerAttack();
             }
-            // else if (betaDelta >= SHIELD_BETA_THRESHOLD && accelZDelta >= SHIELD_Z_THRESHOLD) {
             else if (gammaDelta >= SHIELD_BETA_THRESHOLD ) {
                 triggerShield();
             }
