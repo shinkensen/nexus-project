@@ -64,8 +64,8 @@ function createPlayer(id, name) {
     }
   }
 
-  WORLD.teams.shark.gold += 200;
-  WORLD.teams.cat.gold += 200;
+  WORLD.teams.shark.gold += 400;
+  WORLD.teams.cat.gold += 400;
 
   let isShark = shark < cat;
   let x = WORLD_W / 2;
@@ -77,7 +77,7 @@ function createPlayer(id, name) {
     x = (WORLD_W * 3) / 4 + (Math.random() - 0.5) * WORLD_W / 4;
   }
 
-  p.y = WORLD_H * Math.random() * 2;
+  y = WORLD_H * Math.random() * 2;
 
   return {
     id,
