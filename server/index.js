@@ -34,7 +34,7 @@ const SPEED = 3000;
 const ATTACK_RANGE = 400000;
 const ATTACK_ANGLE = Math.PI / 6;
 const RESPAWN_TIME = 3;
-const WORLD_W = 12000;
+const WORLD_W = 15000;
 const WORLD_H = 8000;
 
 // ─── World state ──────────────────────────────────────────────────────────────
