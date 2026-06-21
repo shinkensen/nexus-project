@@ -41,20 +41,23 @@ function createPlayer(id, name) {
 // -------------------- CONNECTIONS --------------------
 
 io.onConnection((channel) => {
-  console.log("connected:", channel.id);
+  console.log(`[SERVER LOG] New channel connection initiated. ID: ${channel.id}`);
 
   // We add to WORLD players map only when the controller completes name entry and joins
   channel.on("join", (data) => {
     const name = data?.name || "Anonymous";
-    console.log(`Player ${name} (${channel.id}) joined`);
+    console.log(`[SERVER LOG] Join event received from ID: ${channel.id} with name: "${name}"`);
     WORLD.players.set(channel.id, createPlayer(channel.id, name));
+    console.log(`[SERVER LOG] Active Players count: ${WORLD.players.size}`);
   });
 
   // movement input
   channel.on("input", (data) => {
     const p = WORLD.players.get(channel.id);
-    if (!p) return;
-
+    if (!p) {
+      console.log(`[SERVER LOG] Input received from ID: ${channel.id} but player is not in active players list.`);
+      return;
+    }
     p.dx = data.dx;
     p.dy = data.dy;
   });
@@ -73,6 +76,7 @@ io.onConnection((channel) => {
     };
 
     WORLD.attacks.set(attack.id, attack);
+    console.log(`[SERVER LOG] Attack registered from player: ${p.name}`);
 
     // broadcast instantly
     io.emit("attack", attack);
@@ -86,8 +90,9 @@ io.onConnection((channel) => {
   });
 
   channel.onDisconnect(() => {
-    console.log("disconnected:", channel.id);
+    console.log(`[SERVER LOG] Channel disconnected. ID: ${channel.id}`);
     WORLD.players.delete(channel.id);
+    console.log(`[SERVER LOG] Active Players count: ${WORLD.players.size}`);
   });
 });
 
