@@ -55,7 +55,7 @@ export default function Overview() {
         shark.src = "/assets/sprites/shark-removebg-preview.png";
 
         const shield = new Image();
-        shield.src = "/assets/sprites/shield.png";
+        shield.src = "/assets/objects/box-removebg-preview.png";
 
         const map = new Image();
         map.src = "/assets/map/combined_sides.png";
