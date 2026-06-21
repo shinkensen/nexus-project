@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "../backend/supabase";
-import { setPosition, setShield } from "../backend/funcs";
+import { addAttack, setPosition, setShield } from "../backend/funcs";
 const WORLD_WIDTH = 3000;
 const WORLD_HEIGHT = 3000;
 
@@ -12,15 +12,56 @@ export const PLAYER_SPEED = 1000;
 const ATTACK_COOLDOWN_TIME = 4; 
 const SHIELD_COOLDOWN_TIME = 3;
 
-const GAMMA_THRESHOLD = 5;
-const Y_THRESHOLD = 6;
+const SHIELD_GAMMA_THRESHOLD = 7;
+const SHIELD_Y_THRESHOLD = 7;
 const SHIELD_DURATION = 3000;
 const BURN_DURATION = 1000;
 
+
+const ATTACK_ACCEL_THRESHOLD = 8;
+
 const BROADCAST_INTERVAL_MS = 100;
+const DEBUG_REFRESH_MS = 100;
 
 type Orientation = { alpha: number; beta: number; gamma: number };
 type Motion = { x: number; y: number; z: number };
+
+type DebugSnapshot = {
+  orientation: Orientation | null;
+  motion: Motion | null;
+  alphaDelta: number;
+  betaDelta: number;
+  gammaDelta: number;
+  accelXDelta: number;
+  accelYDelta: number;
+  accelZDelta: number;
+  shieldActive: boolean;
+  lastTrigger: number | null;
+  fps: number;
+  playerUuid: string | null;
+  localPos: { x: number; y: number };
+};
+
+const EMPTY_DEBUG: DebugSnapshot = {
+  orientation: null,
+  motion: null,
+  alphaDelta: 0,
+  betaDelta: 0,
+  gammaDelta: 0,
+  accelXDelta: 0,
+  accelYDelta: 0,
+  accelZDelta: 0,
+  shieldActive: false,
+  lastTrigger: null,
+  fps: 0,
+  playerUuid: null,
+  localPos: { x: 0, y: 0 },
+};
+
+function fmt(n: number | undefined | null, digits = 2) {
+  if (n === undefined || n === null || Number.isNaN(n)) return "—";
+  return n.toFixed(digits);
+}
 
 export default function Game({
   playerName,
@@ -33,13 +74,14 @@ export default function Game({
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
+  const [debugOpen, setDebugOpen] = useState(false);
+  const [debugData, setDebugData] = useState<DebugSnapshot>(EMPTY_DEBUG);
+
   const debugRef = useRef({ orientation, motion });
   useEffect(() => {
     debugRef.current = { orientation, motion };
   }, [orientation, motion]);
 
-  let health = 100;
-  let shark = true;
 
   useEffect(() => {
     const canvas = canvasRef.current!;
@@ -48,7 +90,6 @@ export default function Game({
     let width = window.innerWidth;
     let height = window.innerHeight;
 
-    let clientShield = false;
 
     function resize() {
       width = window.innerWidth;
@@ -165,44 +206,97 @@ export default function Game({
     let attackTime = 0;
     let cooldown = 0;
 
+    let prevAlpha: number | null = null;
+    let prevBeta: number | null = null;
     let prevGamma: number | null = null;
     let prevMotionX: number | null = null;
     let prevMotionY: number | null = null;
     let prevMotionZ: number | null = null;
     let shieldTimer: ReturnType<typeof setTimeout> | null = null;
 
-    function gyroAndAccelHandler() {
+    const debugStats = {
+      alphaDelta: 0,
+      betaDelta: 0,
+      gammaDelta: 0,
+      accelXDelta: 0,
+      accelYDelta: 0,
+      accelZDelta: 0,
+      shieldActive: false,
+      lastTrigger: null as number | null,
+      fps: 0,
+    };
+
+    function gyroAndAccelHandler(dx: number, dy: number) {
       const currentOrientation = debugRef.current.orientation;
       const currentMotion = debugRef.current.motion;
 
       if (!currentOrientation || !currentMotion) return;
 
 
-      if (prevGamma !== null && prevMotionY !== null) {
+      if (
+        prevAlpha !== null &&
+        prevBeta !== null &&
+        prevGamma !== null &&
+        prevMotionX !== null &&
+        prevMotionY !== null &&
+        prevMotionZ !== null
+      ) {
+        const alphaDelta = Math.abs(currentOrientation.alpha - prevAlpha);
+        const betaDelta = Math.abs(currentOrientation.beta - prevBeta);
         const gammaDelta = Math.abs(currentOrientation.gamma - prevGamma);
+        const accelXDelta = Math.abs(currentMotion.x - prevMotionX);
         const accelYDelta = Math.abs(currentMotion.y - prevMotionY);
+        const accelZDelta = Math.abs(currentMotion.z - prevMotionZ);
+
+        debugStats.alphaDelta = alphaDelta;
+        debugStats.betaDelta = betaDelta;
+        debugStats.gammaDelta = gammaDelta;
+        debugStats.accelXDelta = accelXDelta;
+        debugStats.accelYDelta = accelYDelta;
+        debugStats.accelZDelta = accelZDelta;
         
-        // box detection
-        if (gammaDelta > GAMMA_THRESHOLD && accelYDelta > Y_THRESHOLD) {
+        // shield detection
+        if (gammaDelta >= SHIELD_GAMMA_THRESHOLD && accelYDelta >= SHIELD_Y_THRESHOLD) {
           const playerUuid = localStorage.getItem("player_uuid");
           if (playerUuid) {
-            clientShield = true;
 
             if (shieldTimer) {
               clearTimeout(shieldTimer);
             }
 
             void setShield(playerUuid, true);
+            debugStats.shieldActive = true;
+            debugStats.lastTrigger = performance.now();
 
             shieldTimer = setTimeout(() => {
               void setShield(playerUuid, false);
               shieldTimer = null;
+              debugStats.shieldActive = false;
             }, SHIELD_DURATION);
           }
 
         }
+
+        else if (currentOrientation.gamma < 2 && currentOrientation.gamma > -2){
+          //attack cast, phone has to be flat to cast a spell
+
+          if (currentMotion.x - prevMotionX >= ATTACK_ACCEL_THRESHOLD){
+            //forward attack
+
+            addAttack(localStorage.getItem("player_uuid"), { x: dx, y: dy })
+            return;
+          }
+          if (currentMotion.x - prevMotionX <= ATTACK_ACCEL_THRESHOLD){
+            //backward attack
+            return;
+          }
+
+
+        }
       }
 
+      prevAlpha = currentOrientation.alpha;
+      prevBeta = currentOrientation.beta;
       prevGamma = currentOrientation.gamma;
       prevMotionX = currentMotion.x;
       prevMotionY = currentMotion.y;
@@ -213,6 +307,13 @@ export default function Game({
     function loop(now: number) {
       const dt = (now - last) / 1000;
       last = now;
+
+      if (dt > 0) {
+        const instantFps = 1 / dt;
+        debugStats.fps = debugStats.fps
+          ? debugStats.fps * 0.9 + instantFps * 0.1
+          : instantFps;
+      }
 
       attackTime -= dt;
       cooldown -= dt;
@@ -262,7 +363,7 @@ export default function Game({
       ctx.lineWidth = 1;
 
 
-      gyroAndAccelHandler();
+      gyroAndAccelHandler(dx, dy);
 
       // playerShieldApplier(cameraX, cameraY);
 
@@ -271,6 +372,27 @@ export default function Game({
     }
 
     requestAnimationFrame(loop);
+
+    // Periodically push a snapshot of the live sensor/game values into
+    // React state so the debug overlay can render them without forcing
+    // a re-render on every animation frame.
+    const debugInterval = setInterval(() => {
+      setDebugData({
+        orientation: debugRef.current.orientation ?? null,
+        motion: debugRef.current.motion ?? null,
+        alphaDelta: debugStats.alphaDelta,
+        betaDelta: debugStats.betaDelta,
+        gammaDelta: debugStats.gammaDelta,
+        accelXDelta: debugStats.accelXDelta,
+        accelYDelta: debugStats.accelYDelta,
+        accelZDelta: debugStats.accelZDelta,
+        shieldActive: debugStats.shieldActive,
+        lastTrigger: debugStats.lastTrigger,
+        fps: debugStats.fps,
+        playerUuid: localStorage.getItem("player_uuid"),
+        localPos: { x: localPlayer.x, y: localPlayer.y },
+      });
+    }, DEBUG_REFRESH_MS);
 
     return () => {
       window.removeEventListener("resize", resize);
@@ -283,24 +405,127 @@ export default function Game({
       if (shieldTimer) {
         clearTimeout(shieldTimer);
       }
+      clearInterval(debugInterval);
       supabase.removeChannel(channel);
     };
   }, []);
 
   return (
-    <canvas
-      ref={canvasRef}
-      onContextMenu={(e) => e.preventDefault()}
-      style={{
-        width: "100vw",
-        height: "100vh",
-        display: "block",
-        userSelect: "none",
-        WebkitUserSelect: "none",
-        touchAction: "none",
-        WebkitTouchCallout: "none",
-        WebkitTapHighlightColor: "transparent",
-      }}
-    />
+    <>
+      <canvas
+        ref={canvasRef}
+        onContextMenu={(e) => e.preventDefault()}
+        style={{
+          width: "100vw",
+          height: "100vh",
+          display: "block",
+          userSelect: "none",
+          WebkitUserSelect: "none",
+          touchAction: "none",
+          WebkitTouchCallout: "none",
+          WebkitTapHighlightColor: "transparent",
+        }}
+      />
+
+      <button
+        onClick={() => setDebugOpen((open) => !open)}
+        style={{
+          position: "fixed",
+          left: 16,
+          bottom: 16,
+          zIndex: 1000,
+          padding: "8px 14px",
+          fontFamily: "'JetBrains Mono', 'Courier New', monospace",
+          fontSize: 12,
+          letterSpacing: "0.04em",
+          textTransform: "uppercase",
+          color: debugOpen ? "#181818" : "#9ae6b4",
+          background: debugOpen ? "#9ae6b4" : "rgba(24, 24, 24, 0.85)",
+          border: "1px solid #9ae6b4",
+          borderRadius: 6,
+          cursor: "pointer",
+          touchAction: "manipulation",
+        }}
+      >
+        {debugOpen ? "Close Debug" : "Debug"}
+      </button>
+
+      {debugOpen && (
+        <div
+          style={{
+            position: "fixed",
+            left: 16,
+            bottom: 60,
+            zIndex: 999,
+            width: 240,
+            maxHeight: "60vh",
+            overflowY: "auto",
+            padding: "12px 14px",
+            background: "rgba(20, 20, 20, 0.9)",
+            border: "1px solid #333",
+            borderRadius: 8,
+            color: "#e2e8f0",
+            fontFamily: "'JetBrains Mono', 'Courier New', monospace",
+            fontSize: 11,
+            lineHeight: 1.6,
+            boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+          }}
+        >
+          <div style={{ color: "#9ae6b4", marginBottom: 6, fontSize: 12 }}>
+            SENSOR DEBUG
+          </div>
+
+          <div style={{ color: "#718096", marginTop: 6 }}>ORIENTATION</div>
+          <div>alpha: {fmt(debugData.orientation?.alpha)}</div>
+          <div>beta: {fmt(debugData.orientation?.beta)}</div>
+          <div>gamma: {fmt(debugData.orientation?.gamma)}</div>
+
+          <div style={{ color: "#718096", marginTop: 6 }}>ORIENTATION DELTA</div>
+          <div>alphaDelta: {fmt(debugData.alphaDelta)}</div>
+          <div>betaDelta: {fmt(debugData.betaDelta)}</div>
+          <div>gammaDelta: {fmt(debugData.gammaDelta)}</div>
+
+          <div style={{ color: "#718096", marginTop: 6 }}>MOTION (accel)</div>
+          <div>x: {fmt(debugData.motion?.x)}</div>
+          <div>y: {fmt(debugData.motion?.y)}</div>
+          <div>z: {fmt(debugData.motion?.z)}</div>
+
+          <div style={{ color: "#718096", marginTop: 6 }}>MOTION DELTA</div>
+          <div>accelXDelta: {fmt(debugData.accelXDelta)}</div>
+          <div>accelYDelta: {fmt(debugData.accelYDelta)}</div>
+          <div>accelZDelta: {fmt(debugData.accelZDelta)}</div>
+
+          <div style={{ color: "#718096", marginTop: 6 }}>SHIELD DETECTION</div>
+          <div>
+            gammaDelta: {fmt(debugData.gammaDelta)}{" "}
+            <span style={{ color: debugData.gammaDelta > SHIELD_GAMMA_THRESHOLD ? "#f6ad55" : "#4a5568" }}>
+              (thr {SHIELD_GAMMA_THRESHOLD})
+            </span>
+          </div>
+          <div>
+            accelYDelta: {fmt(debugData.accelYDelta)}{" "}
+            <span style={{ color: debugData.accelYDelta > SHIELD_Y_THRESHOLD ? "#f6ad55" : "#4a5568" }}>
+              (thr {SHIELD_Y_THRESHOLD})
+            </span>
+          </div>
+          <div>
+            shield:{" "}
+            <span style={{ color: debugData.shieldActive ? "#9ae6b4" : "#718096" }}>
+              {debugData.shieldActive ? "ACTIVE" : "idle"}
+            </span>
+          </div>
+          <div>
+            last trigger:{" "}
+            {debugData.lastTrigger
+              ? `${fmt((performance.now() - debugData.lastTrigger) / 1000, 1)}s ago`
+              : "—"}
+          </div>
+
+          <div style={{ color: "#718096", marginTop: 6 }}>GAME</div>
+          <div>fps: {fmt(debugData.fps, 0)}</div>
+          <div>uuid: {debugData.playerUuid ? `${debugData.playerUuid.slice(0, 8)}…` : "—"}</div>
+        </div>
+      )}
+    </>
   );
 }
