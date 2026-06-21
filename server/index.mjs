@@ -50,7 +50,10 @@ const WORLD = {
     cat: {
       gold: 0,
     }
-  }
+  },
+
+  winner: null,
+
 };
 
 function createPlayer(id, name) {
@@ -154,6 +157,15 @@ setInterval(() => {
   const players = Array.from(WORLD.players.values());
 
   const deaths = [];
+
+  //win condition check
+  if (WORLD.teams.shark.gold == 0) {
+    WORLD.winner = "cat";
+  } else if (WORLD.teams.cat.gold == 0) {
+    WORLD.winner = "shark";
+  }
+
+
 
   // 1. MOVEMENT & GOLD
   for (const p of players) {
