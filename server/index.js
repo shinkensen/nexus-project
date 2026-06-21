@@ -69,8 +69,8 @@ function createPlayer(id, name) {
   return {
     id,
     name,
-    x: WORLD_W / 2,
-    y: WORLD_H / 2,
+    x: p.shark ? WORLD_W / 4 + (Math.random() - 0.5) * 2000 : (WORLD_W * 3) / 4 + (Math.random() - 0.5) * 2000,
+    y: p.shark ? WORLD_H / 4 + (Math.random() - 0.5) * 2000 : (WORLD_H * 3) / 4 + (Math.random() - 0.5) * 2000,
     dx: 0,
     dy: 0,
     angle: 0,
