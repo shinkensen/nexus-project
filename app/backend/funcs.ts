@@ -24,7 +24,7 @@ export async function addPlayer(name: string) {
 
     const positionY = Math.floor(1000 * Math.random());
     const positionX = Math.floor(
-        shark ? 90 * Math.random() + 10 : 90 * Math.random() + 900
+        shark ? (90 * Math.random() + 10) : (90 * Math.random() + 900)
     );
 
     const { data: inserted, error: insertError } = await supabase
@@ -54,10 +54,8 @@ export async function addPlayer(name: string) {
     };
 }
 
-// TODO: SET TO NEW TABLE WITH TEAM GOLD
 export async function getTeamGold(shark: boolean) {
     const { data, error } = await supabase.from("teams").select("gold").eq("team", shark ? "sharks" : "cats").single();
-
     if (error) {
         console.error(error.message);
     }
