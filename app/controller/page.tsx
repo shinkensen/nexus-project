@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useDeviceMotion } from "../hooks/useDeviceMotion";
 
-// ─── Joystick helpers ────────────────────────────────────────────────────────
 
 function clampJoystick(dx: number, dy: number, max: number) {
     const dist = Math.hypot(dx, dy);
@@ -12,16 +11,33 @@ function clampJoystick(dx: number, dy: number, max: number) {
     return { dx: dx * scale, dy: dy * scale };
 }
 
-// ─── Action Buttons (Attack only — Shield is now gyro-driven) ──────────────
+// phone controls
 
-function ActionButtons({ channelRef }: { channelRef: React.MutableRefObject<any> }) {
+const SHIELD_BETA_THRESHOLD = 9;
+const SHIELD_Z_THRESHOLD = 80;
+const SHIELD_DURATION = 3000;
+
+const ATTACK_THRESHOLD = 8;
+const ATTACK_COOLDOWN_TIME = 300;
+const GYRO_POLL_MS = 50;
+
+const MOTION_DETECTION_TIMEOUT_MS = 1500;
+
+
+function ActionButtons({
+    channelRef,
+    shieldActive,
+    onShield,
+}: {
+    channelRef: React.MutableRefObject<any>;
+    shieldActive: boolean;
+    onShield: () => void;
+}) {
     const [attackCooldown, setAttackCooldown] = useState(false);
 
-    const ATTACK_COOLDOWN_TIME = 300;
-
     const handleAttack = () => {
-        if (attackCooldown || !channelRef.current) return;
-        channelRef.current.emit("attack", {});
+        if (attackCooldown || shieldActive || !channelRef.current) return; // can't attack w/ shield on
+        channelRef.current.emit("attack");
         setAttackCooldown(true);
         setTimeout(() => setAttackCooldown(false), ATTACK_COOLDOWN_TIME);
     };
@@ -30,44 +46,99 @@ function ActionButtons({ channelRef }: { channelRef: React.MutableRefObject<any>
         <div
             style={{
                 position: "absolute",
-                bottom: 220,
-                left: 60,
+                bottom: 40,
+                left: 0,
+                right: 0,
                 display: "flex",
-                flexDirection: "column",
-                gap: "10px",
-                width: "140px",
+                justifyContent: "center",
+                gap: "16px",
                 zIndex: 10,
             }}
         >
             <button
                 onClick={handleAttack}
-                disabled={attackCooldown}
+                disabled={attackCooldown || shieldActive}
                 style={{
-                    padding: "12px",
-                    borderRadius: "8px",
+                    padding: "14px 28px",
+                    borderRadius: "10px",
                     border: "none",
-                    background: attackCooldown ? "#333" : "#f44336",
-                    color: attackCooldown ? "#666" : "#fff",
+                    background: attackCooldown || shieldActive ? "#333" : "#f44336",
+                    color: attackCooldown || shieldActive ? "#666" : "#fff",
                     fontWeight: "bold",
-                    cursor: attackCooldown ? "not-allowed" : "pointer",
-                    opacity: attackCooldown ? 0.6 : 1,
-                    fontSize: "14px",
+                    cursor: attackCooldown || shieldActive ? "not-allowed" : "pointer",
+                    opacity: attackCooldown || shieldActive ? 0.6 : 1,
+                    fontSize: "15px",
+                    minWidth: "120px",
                 }}
             >
                 {attackCooldown ? "ATTACK [CD]" : "ATTACK"}
+            </button>
+
+            <button
+                onClick={onShield}
+                disabled={shieldActive}
+                style={{
+                    padding: "14px 28px",
+                    borderRadius: "10px",
+                    border: "none",
+                    background: shieldActive ? "#333" : "#00bcd4",
+                    color: shieldActive ? "#666" : "#fff",
+                    fontWeight: "bold",
+                    cursor: shieldActive ? "not-allowed" : "pointer",
+                    opacity: shieldActive ? 0.6 : 1,
+                    fontSize: "15px",
+                    minWidth: "120px",
+                }}
+            >
+                {shieldActive ? "SHIELD [ON]" : "SHIELD"}
             </button>
         </div>
     );
 }
 
-// phone controls
+function MotionInstructionImages() {
+    return (
+        <div
+            style={{
+                position: "absolute",
+                bottom: 40,
+                left: 0,
+                right: 0,
+                display: "flex",
+                justifyContent: "center",
+                gap: "16px",
+                zIndex: 10,
+                pointerEvents: "none",
+            }}
+        >
+            <img
+                src="/assets/ui/instruction_attack-removebg-preview.png"
+                alt="push phone toward right direction"
+                style={{
+                    width: 120,
+                    height: 120,
+                    borderRadius: "10px",
+                    objectFit: "contain",
+                    background: "rgba(255,255,255,0.05)",
+                    border: "1px solid rgba(255,255,255,0.15)",
+                }}
+            />
+            <img
+                src="/assets/ui/instruction_box-removebg-preview.png"
+                alt="SLAM to shield"
+                style={{
+                    width: 120,
+                    height: 120,
+                    borderRadius: "10px",
+                    objectFit: "contain",
+                    background: "rgba(255,255,255,0.05)",
+                    border: "1px solid rgba(255,255,255,0.15)",
+                }}
+            />
+        </div>
+    );
+}
 
-const SHIELD_BETA_THRESHOLD = 10;
-const SHIELD_Z_THRESHOLD = 80;
-const SHIELD_DURATION = 3000;
-const GYRO_POLL_MS = 50; // matches input streaming cadence
-
-// ─── Main Controller ──────────────────────────────────────────────────────────
 
 export default function Controller() {
     const [name, setName] = useState("");
@@ -76,7 +147,8 @@ export default function Controller() {
     const [shieldActive, setShieldActive] = useState(false);
     const channelRef = useRef<any>(null);
 
-    // Joystick state
+    const [motionAvailable, setMotionAvailable] = useState<boolean | null>(null);
+
     const [knob, setKnob] = useState({ x: 0, y: 0 });
     const joystickRef = useRef({
         active: false,
@@ -88,22 +160,38 @@ export default function Controller() {
 
     const { orientation, motion, permissionNeeded, requestPermission } = useDeviceMotion();
 
-    // Request motion/orientation permission once, as a side effect (not during render)
     useEffect(() => {
         if (permissionNeeded) {
-            requestPermission();
+            requestPermission()
+                .then((result: any) => {
+                    if (result === "denied" || result === false) {
+                        setMotionAvailable(false);
+                    }
+                })
+                .catch(() => setMotionAvailable(false));
         }
     }, [permissionNeeded, requestPermission]);
 
-    // Keep latest sensor readings available to the polling loop without
-    // re-subscribing the interval on every sensor update.
+    useEffect(() => {
+        if (motionAvailable !== null) return; // already decided
+
+        if (orientation && motion) {
+            setMotionAvailable(true);
+            return;
+        }
+
+        const timeout = setTimeout(() => {
+            setMotionAvailable((prev) => (prev === null ? false : prev));
+        }, MOTION_DETECTION_TIMEOUT_MS);
+
+        return () => clearTimeout(timeout);
+    }, [orientation, motion, motionAvailable]);
+
     const debugRef = useRef<{ orientation: any; motion: any }>({ orientation: null, motion: null });
     useEffect(() => {
         debugRef.current = { orientation, motion };
     }, [orientation, motion]);
 
-    // Previous-sample trackers must survive across calls, so they live in a ref
-    // (plain `let`s in the component body would reset on every render).
     const prevRef = useRef({
         alpha: null as number | null,
         beta: null as number | null,
@@ -113,13 +201,11 @@ export default function Controller() {
         motionZ: null as number | null,
     });
 
-    // Tracks the pending auto-release timer for the gyro-triggered shield so
-    // a fresh shake can't stack multiple overlapping timeouts.
     const shieldTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const attackCooldownRef = useRef(false);
 
     function triggerShield() {
         if (!channelRef.current) return;
-        // Already active: just let the existing timer run (don't restack).
         if (shieldTimeoutRef.current) return;
 
         channelRef.current.emit("shield", { shield: true });
@@ -132,6 +218,32 @@ export default function Controller() {
         }, SHIELD_DURATION);
     }
 
+    function handleManualShieldToggle() {
+        if (shieldActive) {
+            if (shieldTimeoutRef.current) {
+                clearTimeout(shieldTimeoutRef.current);
+                shieldTimeoutRef.current = null;
+            }
+            channelRef.current?.emit("shield", { shield: false });
+            setShieldActive(false);
+        } else {
+            triggerShield();
+        }
+    }
+
+    function triggerAttack() {
+        if (!channelRef.current) return;
+        if (shieldTimeoutRef.current) return; // can't attack w/ shield on
+        if (attackCooldownRef.current) return;
+
+        channelRef.current.emit("attack");
+        attackCooldownRef.current = true;
+
+        setTimeout(() => {
+            attackCooldownRef.current = false;
+        }, ATTACK_COOLDOWN_TIME);
+    }
+
     function gyroAndAccelHandler() {
         const currentOrientation = debugRef.current.orientation;
         const currentMotion = debugRef.current.motion;
@@ -139,10 +251,6 @@ export default function Controller() {
         if (!currentOrientation || !currentMotion) return;
 
         const prev = prevRef.current;
-
-        const motionDeltaX = prev.motionX !== null ? currentMotion.x - prev.motionX : 0;
-        const motionDeltaY = prev.motionY !== null ? currentMotion.y - prev.motionY : 0;
-        const motionDeltaZ = prev.motionZ !== null ? currentMotion.z - prev.motionZ : 0;
 
         if (
             prev.alpha !== null &&
@@ -153,14 +261,21 @@ export default function Controller() {
             prev.motionZ !== null
         ) {
             const betaDelta = Math.abs(currentOrientation.beta - prev.beta);
+            const motionDeltaX = currentMotion.x - prev.motionX;
+            const motionDeltaZ = currentMotion.z - prev.motionZ;
+            const motionDeltaY = currentMotion.y - prev.motionY;
             const accelZDelta = Math.abs(motionDeltaZ);
-
-            // Shield detection: a fast tilt-beta change combined with a sharp
-            // z-axis acceleration spike reads as a "block" gesture.
-            if (betaDelta >= SHIELD_BETA_THRESHOLD && accelZDelta >= SHIELD_Z_THRESHOLD) {
+            const accelYDelta = Math.abs(motionDeltaY);
+            
+            if (betaDelta <= 2) {
+                if (motionDeltaZ > ATTACK_THRESHOLD) {
+                    triggerAttack();
+                }
+            }
+            else if (betaDelta >= SHIELD_BETA_THRESHOLD && accelZDelta >= SHIELD_Z_THRESHOLD) {
                 triggerShield();
             }
-        }
+        } 
 
         prev.alpha = currentOrientation.alpha;
         prev.beta = currentOrientation.beta;
@@ -170,16 +285,13 @@ export default function Controller() {
         prev.motionZ = currentMotion.z;
     }
 
-    // Poll the gyro/accel handler on its own interval, independent of the
-    // joystick input stream, for as long as we're connected.
     useEffect(() => {
-        if (!joined) return;
+        if (!joined || !motionAvailable) return;
 
         const gyroInterval = setInterval(gyroAndAccelHandler, GYRO_POLL_MS);
         return () => clearInterval(gyroInterval);
-    }, [joined]);
+    }, [joined, motionAvailable]);
 
-    // Clean up any pending shield-release timer on unmount.
     useEffect(() => {
         return () => {
             if (shieldTimeoutRef.current) clearTimeout(shieldTimeoutRef.current);
@@ -189,7 +301,6 @@ export default function Controller() {
     const sendRef = useRef({ dx: 0, dy: 0 });
     const angleRef = useRef(0);
 
-    // ── Streaming input interval ──────────────────────────────────────────────
     useEffect(() => {
         if (!joined) return;
 
@@ -200,7 +311,6 @@ export default function Controller() {
         return () => clearInterval(interval);
     }, [joined]);
 
-    // ── Connect via geckos.io ─────────────────────────────────────────────────
     function connectAndJoin(playerName: string) {
         let backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://165.22.144.193";
         if (backendUrl && !backendUrl.startsWith("http://") && !backendUrl.startsWith("https://")) {
@@ -246,8 +356,6 @@ export default function Controller() {
         connectAndJoin(trimmedName);
     }
 
-    // ── Joystick pointer handlers ─────────────────────────────────────────────
-
     function onPointerDown(e: React.PointerEvent) {
         if ((e.target as HTMLElement).closest("button")) return;
         joystickRef.current.active = true;
@@ -283,8 +391,6 @@ export default function Controller() {
         sendRef.current.dx = 0;
         sendRef.current.dy = 0;
     }
-
-    // ── Join screen ───────────────────────────────────────────────────────────
 
     if (!joined) {
         return (
@@ -386,32 +492,24 @@ export default function Controller() {
                 fontFamily: "system-ui, sans-serif",
             }}
         >
-            {/* Status label */}
-            <div style={{ pointerEvents: "none", textAlign: "center", paddingTop: "20px" }}>
-                <p style={{ color: "#6366f1", fontSize: "20px", fontWeight: "bold", margin: 0 }}>
-                    Connected as {name}
-                </p>
-                <p style={{ color: "#888", fontSize: "13px", marginTop: "6px" }}>
-                    Drag joystick to move • Tilt/shake to shield • Use button to attack
-                </p>
-                {shieldActive && (
-                    <p style={{ color: "#00bcd4", fontSize: "14px", fontWeight: "bold", marginTop: "6px" }}>
-                        SHIELD ACTIVE
-                    </p>
-                )}
-            </div>
 
-            {/* Attack button (Shield is now gyro-triggered, no button) */}
-            <ActionButtons channelRef={channelRef} />
+            {motionAvailable === false && (
+                <ActionButtons
+                    channelRef={channelRef}
+                    shieldActive={shieldActive}
+                    onShield={handleManualShieldToggle}
+                />
+            )}
+            {motionAvailable === true && <MotionInstructionImages />}
 
-            {/* Joystick */}
             <div
                 style={{
                     position: "absolute",
-                    bottom: 60,
-                    left: 60,
+                    top: "50%",
+                    left: "50%",
                     width: 140,
                     height: 140,
+                    transform: "translate(-50%, -50%)",
                 }}
             >
                 {/* Base ring */}

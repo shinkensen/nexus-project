@@ -38,7 +38,10 @@ export default function Host() {
 
                     // Full world state (players)
                     channel.on("state", (state: any) => {
-                        playersRef.current = state.players || [];
+                        playersRef.current = (state.players || []).map((p: any) => ({
+                            ...p,
+                            gold: p.gold ?? 0,
+                        }));
                     });
 
                     // Attack visual effects
@@ -66,6 +69,8 @@ export default function Host() {
         catImg.src = "/assets/sprites/cat-removebg-preview.png";
         const sharkImg = new Image();
         sharkImg.src = "/assets/sprites/shark-removebg-preview.png";
+        const shieldImg = new Image();
+        shieldImg.src = "/assets/objects/box-removebg-preview.png";
 
         function resize() {
             canvas.width = window.innerWidth;
@@ -85,7 +90,7 @@ export default function Host() {
         }
 
         function drawPlayers() {
-            const SPRITE_SIZE = 60;
+            const SPRITE_SIZE = 90;
 
             for (const p of playersRef.current) {
                 if (!p.alive) continue;
@@ -93,24 +98,32 @@ export default function Host() {
                 const px = p.x * WORLD_SCALE;
                 const py = p.y * WORLD_SCALE;
 
-                // Draw sprite (cat or shark)
-                const img = p.shark ? sharkImg : catImg;
-                ctx.drawImage(img, px - SPRITE_SIZE / 2, py - SPRITE_SIZE / 2, SPRITE_SIZE, SPRITE_SIZE);
+                console.log(`[HOST LOG] Drawing player ${p.name} at (${px.toFixed(1)}, ${py.toFixed(1)}) with gold: ${p.gold}`);
 
-                // Shield indicator
+                // Draw sprite (cat or shark)
+                let img = p.shark ? sharkImg : catImg;
+
                 if (p.shield) {
-                    ctx.strokeStyle = "rgba(0, 188, 212, 0.8)";
-                    ctx.lineWidth = 3;
-                    ctx.beginPath();
-                    ctx.arc(px, py, SPRITE_SIZE / 2 + 6, 0, Math.PI * 2);
-                    ctx.stroke();
+                    img = shieldImg;
                 }
+
+                ctx.drawImage(img, px - SPRITE_SIZE / 2, py - SPRITE_SIZE / 2, SPRITE_SIZE, SPRITE_SIZE);
 
                 // Player name
                 ctx.fillStyle = "#ffffff";
                 ctx.font = "bold 14px system-ui, sans-serif";
                 ctx.textAlign = "center";
                 ctx.fillText(p.name || "Anonymous", px, py - SPRITE_SIZE / 2 - 6);
+
+                // player gold count IF greater than 0
+                if (p.gold > 0) {
+                    ctx.fillStyle = "#ffd700";
+                    ctx.font = "bold 12px system-ui, sans-serif";
+                    ctx.textAlign = "center";
+                    ctx.fillText(`Gold: ${p.gold}`, px, py + SPRITE_SIZE / 2 + 16);
+                }
+
+                console.log(p.gold);
             }
         }
 
@@ -147,9 +160,10 @@ export default function Host() {
 
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // Background
-            ctx.fillStyle = "#0f0f1b";
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            // Background from image
+            const bgImg = new Image();
+            bgImg.src = "/assets/map/combined_sides.png";
+            ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
 
             drawAttackFX();
             drawPlayers();

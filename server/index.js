@@ -57,6 +57,7 @@ function createPlayer(id, name) {
     attackRequested: false,
     alive: true,
     respawnTimer: 0,
+    gold: 0,
   };
 }
 
@@ -140,6 +141,12 @@ setInterval(() => {
       p.x = Math.max(0, Math.min(WORLD_W, p.x));
       p.y = Math.max(0, Math.min(WORLD_H, p.y));
     }
+
+    if (!p.shark && p.x < 5000) {
+      p.gold += 1;
+    } else if (p.shark && p.x > 15000) {
+      p.gold += 1;
+    }
   }
 
   for (const attacker of WORLD.players.values()) {
@@ -169,6 +176,8 @@ setInterval(() => {
       if (angleDiff(attacker.angle, targetAngle) <= ATTACK_ANGLE / 2) {
         victim.alive = false;
         victim.respawnTimer = RESPAWN_TIME;
+        attacker.gold += victim.gold;
+        victim.gold = 0;
         console.log(`[SERVER LOG] ${attacker.name} eliminated ${victim.name}!`);
       }
     }
