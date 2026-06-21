@@ -67,7 +67,6 @@ export default function Host() {
         const canvas = canvasRef.current!;
         const ctx = canvas.getContext("2d")!;
 
-        // Preload sprite images
         const catImg = new Image();
         catImg.src = "/assets/sprites/cat-removebg-preview.png";
         const sharkImg = new Image();

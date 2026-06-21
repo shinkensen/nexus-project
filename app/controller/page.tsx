@@ -16,7 +16,7 @@ function clampJoystick(dx: number, dy: number, max: number) {
 const SHIELD_BETA_THRESHOLD = 60;
 const SHIELD_DURATION = 3000;
 const SHIELD_COOLDOWN_TIME = 1000;
-const SHIELD_MOVE_SPEED_MULTIPLIER = 0.4; // movement speed while shield is up
+const SHIELD_MOVE_SPEED_MULTIPLIER = 0.2; // movement speed while shield is up
 
 const ATTACK_THRESHOLD = 7;
 const ATTACK_COOLDOWN_TIME = 300;
