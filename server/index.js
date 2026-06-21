@@ -57,6 +57,7 @@ function createPlayer(id, name) {
     attackRequested: false,
     alive: true,
     respawnTimer: 0,
+    gold: 0,
   };
 }
 
@@ -129,6 +130,12 @@ setInterval(() => {
       }
       continue;
     }
+    
+    if (p.shark && p.x < 250) {
+      p.gold += 10 / TICK_RATE;
+    } else if (!p.shark && p.x > 1115) {
+      p.gold += 10 / TICK_RATE;
+    }
 
     const len = Math.hypot(p.dx, p.dy);
     if (len > 0.01) {
@@ -169,6 +176,8 @@ setInterval(() => {
       if (angleDiff(attacker.angle, targetAngle) <= ATTACK_ANGLE / 2) {
         victim.alive = false;
         victim.respawnTimer = RESPAWN_TIME;
+        attacker.gold += victim.gold;
+        victim.gold = 0;
         console.log(`[SERVER LOG] ${attacker.name} eliminated ${victim.name}!`);
       }
     }
