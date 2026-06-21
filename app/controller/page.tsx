@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useDeviceMotion } from "../hooks/useDeviceMotion";
 
-// ─── Joystick helpers ────────────────────────────────────────────────────────
 
 function clampJoystick(dx: number, dy: number, max: number) {
     const dist = Math.hypot(dx, dy);
@@ -14,13 +13,131 @@ function clampJoystick(dx: number, dy: number, max: number) {
 
 // phone controls
 
-const SHIELD_BETA_THRESHOLD = 6;
-const SHIELD_Z_THRESHOLD = 60;
+const SHIELD_BETA_THRESHOLD = 8;
+const SHIELD_Z_THRESHOLD = 13;
 const SHIELD_DURATION = 3000;
 
 const ATTACK_THRESHOLD = 8;
 const ATTACK_COOLDOWN_TIME = 300;
 const GYRO_POLL_MS = 50;
+
+const MOTION_DETECTION_TIMEOUT_MS = 1500;
+
+
+function ActionButtons({
+    channelRef,
+    shieldActive,
+    onShield,
+}: {
+    channelRef: React.MutableRefObject<any>;
+    shieldActive: boolean;
+    onShield: () => void;
+}) {
+    const [attackCooldown, setAttackCooldown] = useState(false);
+
+    const handleAttack = () => {
+        if (attackCooldown || shieldActive || !channelRef.current) return; // can't attack w/ shield on
+        channelRef.current.emit("attack");
+        setAttackCooldown(true);
+        setTimeout(() => setAttackCooldown(false), ATTACK_COOLDOWN_TIME);
+    };
+
+    return (
+        <div
+            style={{
+                position: "absolute",
+                bottom: 40,
+                left: 0,
+                right: 0,
+                display: "flex",
+                justifyContent: "center",
+                gap: "16px",
+                zIndex: 10,
+            }}
+        >
+            <button
+                onClick={handleAttack}
+                disabled={attackCooldown || shieldActive}
+                style={{
+                    padding: "14px 28px",
+                    borderRadius: "10px",
+                    border: "none",
+                    background: attackCooldown || shieldActive ? "#333" : "#f44336",
+                    color: attackCooldown || shieldActive ? "#666" : "#fff",
+                    fontWeight: "bold",
+                    cursor: attackCooldown || shieldActive ? "not-allowed" : "pointer",
+                    opacity: attackCooldown || shieldActive ? 0.6 : 1,
+                    fontSize: "15px",
+                    minWidth: "120px",
+                }}
+            >
+                {attackCooldown ? "ATTACK [CD]" : "ATTACK"}
+            </button>
+
+            <button
+                onClick={onShield}
+                disabled={shieldActive}
+                style={{
+                    padding: "14px 28px",
+                    borderRadius: "10px",
+                    border: "none",
+                    background: shieldActive ? "#333" : "#00bcd4",
+                    color: shieldActive ? "#666" : "#fff",
+                    fontWeight: "bold",
+                    cursor: shieldActive ? "not-allowed" : "pointer",
+                    opacity: shieldActive ? 0.6 : 1,
+                    fontSize: "15px",
+                    minWidth: "120px",
+                }}
+            >
+                {shieldActive ? "SHIELD [ON]" : "SHIELD"}
+            </button>
+        </div>
+    );
+}
+
+function MotionInstructionImages() {
+    return (
+        <div
+            style={{
+                position: "absolute",
+                bottom: 40,
+                left: 0,
+                right: 0,
+                display: "flex",
+                justifyContent: "center",
+                gap: "16px",
+                zIndex: 10,
+                pointerEvents: "none",
+            }}
+        >
+            <img
+                src="assets/ui/instruction_attack-removebg-preview"
+                alt="push phone toward right direction"
+                style={{
+                    width: 120,
+                    height: 120,
+                    borderRadius: "10px",
+                    objectFit: "contain",
+                    background: "rgba(255,255,255,0.05)",
+                    border: "1px solid rgba(255,255,255,0.15)",
+                }}
+            />
+            <img
+                src="assets/ui/instruction_box-removebg-preview"
+                alt="SLAM to shield"
+                style={{
+                    width: 120,
+                    height: 120,
+                    borderRadius: "10px",
+                    objectFit: "contain",
+                    background: "rgba(255,255,255,0.05)",
+                    border: "1px solid rgba(255,255,255,0.15)",
+                }}
+            />
+        </div>
+    );
+}
 
 // ─── Main Controller ──────────────────────────────────────────────────────────
 
@@ -31,7 +148,8 @@ export default function Controller() {
     const [shieldActive, setShieldActive] = useState(false);
     const channelRef = useRef<any>(null);
 
-    // Joystick state
+    const [motionAvailable, setMotionAvailable] = useState<boolean | null>(null);
+
     const [knob, setKnob] = useState({ x: 0, y: 0 });
     const joystickRef = useRef({
         active: false,
@@ -43,15 +161,33 @@ export default function Controller() {
 
     const { orientation, motion, permissionNeeded, requestPermission } = useDeviceMotion();
 
-    // Request motion/orientation permission once, as a side effect (not during render)
     useEffect(() => {
         if (permissionNeeded) {
-            requestPermission();
+            requestPermission()
+                .then((result: any) => {
+                    if (result === "denied" || result === false) {
+                        setMotionAvailable(false);
+                    }
+                })
+                .catch(() => setMotionAvailable(false));
         }
     }, [permissionNeeded, requestPermission]);
 
-    // Keep latest sensor readings available to the polling loop without
-    // re-subscribing the interval on every sensor update.
+    useEffect(() => {
+        if (motionAvailable !== null) return; // already decided
+
+        if (orientation && motion) {
+            setMotionAvailable(true);
+            return;
+        }
+
+        const timeout = setTimeout(() => {
+            setMotionAvailable((prev) => (prev === null ? false : prev));
+        }, MOTION_DETECTION_TIMEOUT_MS);
+
+        return () => clearTimeout(timeout);
+    }, [orientation, motion, motionAvailable]);
+
     const debugRef = useRef<{ orientation: any; motion: any }>({ orientation: null, motion: null });
     useEffect(() => {
         debugRef.current = { orientation, motion };
@@ -83,11 +219,25 @@ export default function Controller() {
         }, SHIELD_DURATION);
     }
 
-    function triggerAttack(direction: string) {
+    function handleManualShieldToggle() {
+        if (shieldActive) {
+            if (shieldTimeoutRef.current) {
+                clearTimeout(shieldTimeoutRef.current);
+                shieldTimeoutRef.current = null;
+            }
+            channelRef.current?.emit("shield", { shield: false });
+            setShieldActive(false);
+        } else {
+            triggerShield();
+        }
+    }
+
+    function triggerAttack() {
         if (!channelRef.current) return;
+        if (shieldTimeoutRef.current) return; // can't attack w/ shield on
         if (attackCooldownRef.current) return;
 
-        channelRef.current.emit("attack", { direction });
+        channelRef.current.emit("attack");
         attackCooldownRef.current = true;
 
         setTimeout(() => {
@@ -114,27 +264,15 @@ export default function Controller() {
             const betaDelta = Math.abs(currentOrientation.beta - prev.beta);
             const motionDeltaX = currentMotion.x - prev.motionX;
             const motionDeltaZ = currentMotion.z - prev.motionZ;
+            const motionDeltaY = currentMotion.y - prev.motionY;
             const accelZDelta = Math.abs(motionDeltaZ);
+            const accelYDelta = Math.abs(motionDeltaY);
 
-            if (betaDelta >= SHIELD_BETA_THRESHOLD && accelZDelta >= SHIELD_Z_THRESHOLD) {
+            if (betaDelta >= SHIELD_BETA_THRESHOLD && accelYDelta >= SHIELD_Z_THRESHOLD) {
                 triggerShield();
             } else if (betaDelta <= 2) {
-                // Phone is roughly flat — check for a directional shake/attack.
-                // `direction` is left as a plain string for the backend to parse.
-                let direction: string | null = null;
-
                 if (motionDeltaZ > ATTACK_THRESHOLD) {
-                    direction = "north";
-                } else if (motionDeltaZ < -ATTACK_THRESHOLD) {
-                    direction = "south";
-                } else if (motionDeltaX > ATTACK_THRESHOLD) {
-                    direction = "east";
-                } else if (motionDeltaX < -ATTACK_THRESHOLD) {
-                    direction = "west";
-                }
-
-                if (direction) {
-                    triggerAttack(direction);
+                    triggerAttack();
                 }
             }
         }
@@ -147,16 +285,13 @@ export default function Controller() {
         prev.motionZ = currentMotion.z;
     }
 
-    // Poll the gyro/accel handler on its own interval, independent of the
-    // joystick input stream, for as long as we're connected.
     useEffect(() => {
-        if (!joined) return;
+        if (!joined || !motionAvailable) return;
 
         const gyroInterval = setInterval(gyroAndAccelHandler, GYRO_POLL_MS);
         return () => clearInterval(gyroInterval);
-    }, [joined]);
+    }, [joined, motionAvailable]);
 
-    // Clean up any pending shield-release timer on unmount.
     useEffect(() => {
         return () => {
             if (shieldTimeoutRef.current) clearTimeout(shieldTimeoutRef.current);
@@ -166,7 +301,6 @@ export default function Controller() {
     const sendRef = useRef({ dx: 0, dy: 0 });
     const angleRef = useRef(0);
 
-    // ── Streaming input interval ──────────────────────────────────────────────
     useEffect(() => {
         if (!joined) return;
 
@@ -223,8 +357,6 @@ export default function Controller() {
         connectAndJoin(trimmedName);
     }
 
-    // ── Joystick pointer handlers ─────────────────────────────────────────────
-
     function onPointerDown(e: React.PointerEvent) {
         if ((e.target as HTMLElement).closest("button")) return;
         joystickRef.current.active = true;
@@ -260,8 +392,6 @@ export default function Controller() {
         sendRef.current.dx = 0;
         sendRef.current.dy = 0;
     }
-
-    // ── Join screen ───────────────────────────────────────────────────────────
 
     if (!joined) {
         return (
@@ -363,29 +493,24 @@ export default function Controller() {
                 fontFamily: "system-ui, sans-serif",
             }}
         >
-            {/* Status label */}
-            <div style={{ pointerEvents: "none", textAlign: "center", paddingTop: "20px" }}>
-                <p style={{ color: "#6366f1", fontSize: "20px", fontWeight: "bold", margin: 0 }}>
-                    Connected as {name}
-                </p>
-                <p style={{ color: "#888", fontSize: "13px", marginTop: "6px" }}>
-                    Drag joystick to move • Tilt/shake to shield • Shake flat to attack
-                </p>
-                {shieldActive && (
-                    <p style={{ color: "#00bcd4", fontSize: "14px", fontWeight: "bold", marginTop: "6px" }}>
-                        SHIELD ACTIVE
-                    </p>
-                )}
-            </div>
 
-            {/* Joystick */}
+            {motionAvailable === false && (
+                <ActionButtons
+                    channelRef={channelRef}
+                    shieldActive={shieldActive}
+                    onShield={handleManualShieldToggle}
+                />
+            )}
+            {motionAvailable === true && <MotionInstructionImages />}
+
             <div
                 style={{
                     position: "absolute",
-                    bottom: 60,
-                    left: 60,
+                    top: "50%",
+                    left: "50%",
                     width: 140,
                     height: 140,
+                    transform: "translate(-50%, -50%)",
                 }}
             >
                 {/* Base ring */}
