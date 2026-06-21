@@ -67,8 +67,8 @@ function createPlayer(id, name) {
     }
   }
 
-  WORLD.teams.shark.gold += 400;
-  WORLD.teams.cat.gold += 400;
+  WORLD.teams.shark.gold += 150;
+  WORLD.teams.cat.gold += 150;
 
   let isShark = shark < cat;
   let x = WORLD_W / 2;
@@ -96,6 +96,7 @@ function createPlayer(id, name) {
     alive: true,
     respawnTimer: 0,
     gold: 0,
+    kills: 0,
   };
 }
 
@@ -159,7 +160,7 @@ io.onConnection((channel) => {
     WORLD.players.delete(channel.id);
 
     // scale both teams down proportionally to remaining player capacity
-    const MAX_PER_PLAYER = 400;
+    const MAX_PER_PLAYER = 150;
     const remainingPlayers = Math.max(WORLD.players.size, 1);
 
     const oldMax = (remainingPlayers + 1) * MAX_PER_PLAYER;
@@ -268,6 +269,8 @@ setInterval(() => {
       ) {
         victim.alive = false;
         victim.respawnTimer = RESPAWN_TIME;
+
+        attacker.kills++;
 
         attacker.gold += victim.gold;
         victim.gold = 0;
