@@ -164,6 +164,12 @@ setInterval(() => {
     if (!attacker.attackRequested || !attacker.alive) continue;
     attacker.attackRequested = false;
 
+    io.emit("attack_fx", {
+      x: attacker.x,
+      y: attacker.y,
+      angle: attacker.angle,
+    });
+
     for (const victim of players) {
       if (victim === attacker || !victim.alive || victim.shield) continue;
 
