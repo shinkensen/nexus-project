@@ -35,7 +35,7 @@ const RESPAWN_TIME = 3;
 const WORLD_W = 17000;
 const WORLD_H = 8000;
 
-const ATTACK_RADIUS = 4000; // hitbox radius for simplicity
+const ATTACK_RADIUS = 40000; // hitbox radius for simplicity
 
 // -------------------- WORLD STATE --------------------
 
