@@ -8,30 +8,74 @@ const io = new Server(server, { cors: { origin: "*" } });
 
 const TICK_RATE = 60;
 
-// ===== WORLD SCALE (pure units, no pixels here) =====
-const SPEED = 3000;              // units per second
-const ATTACK_RANGE = 4000;       // units
+// ===== WORLD SCALE =====
+const SPEED = 4000;
+const ATTACK_RANGE = 4000;
 const ATTACK_ANGLE = Math.PI / 6;
+
+// ===== MAP =====
+const MAP = {
+    width: 20000,
+    height: 10000,
+};
 
 const WORLD = {
     players: new Map(),
 };
 
+function getTeamCounts() {
+    let sharks = 0;
+    let cats = 0;
+
+    for (const p of WORLD.players.values()) {
+        if (p.shark) sharks++;
+        else cats++;
+    }
+
+    return { sharks, cats };
+}
+
+function assignTeam() {
+    const { sharks, cats } = getTeamCounts();
+
+    // self-balancing rule
+    if (sharks <= cats) return true;  // shark
+    return false; // cat
+}
+
+function spawnPosition(isShark) {
+    if (isShark) {
+        return {
+            x: MAP.width * 0.1, // left side
+            y: Math.random() * MAP.height,
+        };
+    } else {
+        return {
+            x: MAP.width * 0.9, // right side
+            y: Math.random() * MAP.height,
+        };
+    }
+}
+
 function createPlayer(id) {
+    const shark = assignTeam();
+    const pos = spawnPosition(shark);
+
     return {
         id,
-        x: 0,
-        y: 0,
+
+        x: pos.x,
+        y: pos.y,
 
         dx: 0,
         dy: 0,
         angle: 0,
 
-        // random
-        shark: Math.random() < 0.5,
+        shark,
 
         shield: false,
         attackRequested: false,
+
         alive: true,
         respawnTimer: 0,
     };
@@ -44,7 +88,7 @@ function angleDiff(a, b) {
     return Math.abs(d);
 }
 
-// INPUT
+// ===== INPUT =====
 io.on("connection", (socket) => {
     WORLD.players.set(socket.id, createPlayer(socket.id));
 
@@ -78,23 +122,31 @@ io.on("connection", (socket) => {
     });
 });
 
-// GAME LOOP
+// ===== GAME LOOP =====
 setInterval(() => {
     const dt = 1 / TICK_RATE;
 
-    // movement
+    // movement + respawn
     for (const p of WORLD.players.values()) {
         if (!p.alive) {
             p.respawnTimer -= dt;
+
             if (p.respawnTimer <= 0) {
                 p.alive = true;
-                p.x = 0;
-                p.y = 0;
+
+                const pos = spawnPosition(p.shark);
+                p.x = pos.x;
+                p.y = pos.y;
+
+                p.dx = 0;
+                p.dy = 0;
             }
+
             continue;
         }
 
         const len = Math.hypot(p.dx, p.dy);
+
         if (len > 0.01) {
             const nx = p.dx / len;
             const ny = p.dy / len;
@@ -103,8 +155,8 @@ setInterval(() => {
             p.y += ny * SPEED * dt;
 
             if (p.x < 0) p.x = 0;
-            if (p.y < 0) p.y = 0;
             if (p.x > 20000) p.x = 20000;
+            if (p.y < 0) p.y = 0;
             if (p.y > 10000) p.y = 10000;
         }
     }
@@ -115,7 +167,6 @@ setInterval(() => {
 
         attacker.attackRequested = false;
 
-        // FX event (pure world units)
         io.emit("attack_fx", {
             x: attacker.x,
             y: attacker.y,
@@ -126,7 +177,9 @@ setInterval(() => {
             if (victim === attacker) continue;
             if (!victim.alive) continue;
             if (victim.shield) continue;
-            if (attacker.shark == victim.shark) continue; // same type can't hurt each other
+
+            // team rule
+            if (attacker.shark === victim.shark) continue;
 
             const dx = victim.x - attacker.x;
             const dy = victim.y - attacker.y;
@@ -139,7 +192,7 @@ setInterval(() => {
 
             if (diff <= ATTACK_ANGLE / 2) {
                 victim.alive = false;
-                victim.respawnTimer = 0;
+                victim.respawnTimer = 2;
             }
         }
     }

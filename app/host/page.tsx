@@ -66,8 +66,12 @@ export default function Host() {
 
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            ctx.fillStyle = "#111";
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            // ctx.fillStyle = "#111";
+            // ctx.fillRect(0, 0, canvas.width, canvas.height);
+            // fill in image as background
+            const bg = new Image();
+            bg.src = "/assets/map/combined_sides.png";
+            ctx.drawImage(bg, 0, 0, canvas.width, canvas.height);
 
             // ===== players =====
             for (const p of playersRef.current) {
@@ -84,7 +88,12 @@ export default function Host() {
                 // fill sprite in from assets/sprites
                 const img = new Image();
                 img.src = p.shark ? "/assets/sprites/shark-removebg-preview.png" : "/assets/sprites/cat-removebg-preview.png";
-                const size = 60;
+
+                if (p.shield) {
+                    img.src = "/assets/objects/box-removebg-preview.png";
+                }
+
+                const size = 120;
                 ctx.drawImage(
                     img,
                     p.x * WORLD_SCALE - size / 2,
