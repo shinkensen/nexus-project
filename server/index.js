@@ -28,13 +28,27 @@ app.get("/", (req, res) => {
 });
 
 const TICK_RATE = 60;
-const ATTACK_RADIUS = 120;
+const SPEED = 3000;
+const ATTACK_LENGTH = 4000; // forward distance
+const ATTACK_WIDTH = 1200;  // total width
+const RESPAWN_TIME = 3;
+const WORLD_W = 17000;
+const WORLD_H = 8000;
 
 // -------------------- WORLD STATE --------------------
 
 const WORLD = {
   players: new Map(),
   attacks: new Map(),
+
+  teams: {
+    shark: {
+      gold: 0,
+    },
+    cat: {
+      gold: 0,
+    }
+  }
 };
 
 function createPlayer(id, name) {
@@ -84,7 +98,8 @@ io.onConnection((channel) => {
       attackerId: channel.id,
       x: p.x,
       y: p.y,
-      angle: data.angle, // radians
+      // angle: data.angle, // radians
+      angle: 0,
       timestamp: Date.now(),
     };
 
