@@ -101,6 +101,11 @@ setInterval(() => {
 
             p.x += nx * SPEED * dt;
             p.y += ny * SPEED * dt;
+
+            if (p.x < 0) p.x = 0;
+            if (p.y < 0) p.y = 0;
+            if (p.x > 20000) p.x = 20000;
+            if (p.y > 10000) p.y = 10000;
         }
     }
 

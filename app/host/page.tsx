@@ -32,8 +32,8 @@ export default function Host() {
         const ctx = canvas.getContext("2d")!;
 
         function resize() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
+            canvas.width = 2000;
+            canvas.height = 1000;
         }
 
         resize();
