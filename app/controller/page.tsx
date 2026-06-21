@@ -13,8 +13,8 @@ function clampJoystick(dx: number, dy: number, max: number) {
 
 // phone controls
 
-const SHIELD_BETA_THRESHOLD = 8;
-const SHIELD_Z_THRESHOLD = 13;
+const SHIELD_BETA_THRESHOLD = 9;
+const SHIELD_Z_THRESHOLD = 80;
 const SHIELD_DURATION = 3000;
 
 const ATTACK_THRESHOLD = 8;
@@ -112,7 +112,7 @@ function MotionInstructionImages() {
             }}
         >
             <img
-                src="assets/ui/instruction_attack-removebg-preview"
+                src="/assets/ui/instruction_attack-removebg-preview.png"
                 alt="push phone toward right direction"
                 style={{
                     width: 120,
@@ -124,7 +124,7 @@ function MotionInstructionImages() {
                 }}
             />
             <img
-                src="assets/ui/instruction_box-removebg-preview"
+                src="/assets/ui/instruction_box-removebg-preview.png"
                 alt="SLAM to shield"
                 style={{
                     width: 120,
@@ -139,7 +139,6 @@ function MotionInstructionImages() {
     );
 }
 
-// ─── Main Controller ──────────────────────────────────────────────────────────
 
 export default function Controller() {
     const [name, setName] = useState("");
@@ -267,15 +266,16 @@ export default function Controller() {
             const motionDeltaY = currentMotion.y - prev.motionY;
             const accelZDelta = Math.abs(motionDeltaZ);
             const accelYDelta = Math.abs(motionDeltaY);
-
-            if (betaDelta >= SHIELD_BETA_THRESHOLD && accelYDelta >= SHIELD_Z_THRESHOLD) {
-                triggerShield();
-            } else if (betaDelta <= 2) {
+            
+            if (betaDelta <= 2) {
                 if (motionDeltaZ > ATTACK_THRESHOLD) {
                     triggerAttack();
                 }
             }
-        }
+            else if (betaDelta >= SHIELD_BETA_THRESHOLD && accelZDelta >= SHIELD_Z_THRESHOLD) {
+                triggerShield();
+            }
+        } 
 
         prev.alpha = currentOrientation.alpha;
         prev.beta = currentOrientation.beta;
@@ -311,7 +311,6 @@ export default function Controller() {
         return () => clearInterval(interval);
     }, [joined]);
 
-    // ── Connect via geckos.io ─────────────────────────────────────────────────
     function connectAndJoin(playerName: string) {
         let backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://165.22.144.193";
         if (backendUrl && !backendUrl.startsWith("http://") && !backendUrl.startsWith("https://")) {
