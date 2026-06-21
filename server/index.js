@@ -142,11 +142,13 @@ setInterval(() => {
       p.y = Math.max(0, Math.min(WORLD_H, p.y));
     }
 
-    if (!p.shark && p.x < 250) {
-      p.gold += 1;
-    } else if (p.shark && p.x > 1115) {
-      p.gold += 1;
-    }
+    // if (!p.shark && p.x < 250) {
+    //   p.gold += 1;
+    // } else if (p.shark && p.x > 1115) {
+    //   p.gold += 1;
+    // }
+
+    p.gold += 10 / 60;
   }
 
   for (const attacker of WORLD.players.values()) {
