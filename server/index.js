@@ -19,7 +19,7 @@ app.get("/", (req, res) => {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const TICK_RATE = 60;
-const SPEED = 3000;
+const SPEED = 2300;
 const ATTACK_LENGTH = 4000; // forward distance
 const ATTACK_WIDTH = 1200;  // total width
 const RESPAWN_TIME = 3;
@@ -112,6 +112,7 @@ io.onConnection((channel) => {
     const p = WORLD.players.get(channel.id);
     if (!p || !p.alive) return;
     p.attackRequested = true;
+    
   });
 
   channel.on("shield", (data) => {
