@@ -129,7 +129,7 @@ setInterval(() => {
   for (const atk of WORLD.attacks.values()) {
     for (const p of WORLD.players.values()) {
       if (!p.alive) continue;
-      if (p.id === atk.attackerId) continue;
+      if (p.id === atk.attackerId) continue; 
 
       const dx = p.x - atk.x;
       const dy = p.y - atk.y;
