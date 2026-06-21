@@ -72,12 +72,12 @@ function createPlayer(id, name) {
   let y = WORLD_H / 2;
 
   if (isShark) {
-    x = WORLD_W / 4 + (Math.random() - 0.5) * 2000;
-    y = WORLD_H / 4 + (Math.random() - 0.5) * 2000;
+    x = WORLD_W / 4 + (Math.random() - 0.5) * WORLD_W / 4;
   } else {
-    x = (WORLD_W * 3) / 4 + (Math.random() - 0.5) * 2000;
-    y = (WORLD_H * 3) / 4 + (Math.random() - 0.5) * 2000;
+    x = (WORLD_W * 3) / 4 + (Math.random() - 0.5) * WORLD_W / 4;
   }
+
+  p.y = WORLD_H * Math.random() * 2;
 
   return {
     id,
@@ -238,12 +238,13 @@ setInterval(() => {
       p.alive = true;
 
       if(p.shark) {
-        p.x = WORLD_W / 4 + (Math.random() - 0.5) * 2000;
-        p.y = WORLD_H / 4 + (Math.random() - 0.5) * 2000;
+        p.x = WORLD_W / 4 + (Math.random() - 0.5) * WORLD_W / 4;
       } else {
-        p.x = (WORLD_W * 3) / 4 + (Math.random() - 0.5) * 2000;
-        p.y = (WORLD_H * 3) / 4 + (Math.random() - 0.5) * 2000;
+        p.x = (WORLD_W * 3) / 4 + (Math.random() - 0.5) * WORLD_W / 4;
       }
+
+      // y is completely random
+      p.y = WORLD_H * Math.random() * 2;
     }
   }
 
