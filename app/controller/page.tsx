@@ -16,7 +16,7 @@ function clampJoystick(dx: number, dy: number, max: number) {
 const SHIELD_BETA_THRESHOLD = 45;
 const SHIELD_DURATION = 3000;
 
-const ATTACK_THRESHOLD = 6;
+const ATTACK_THRESHOLD = 4;
 const ATTACK_COOLDOWN_TIME = 300;
 const GYRO_POLL_MS = 50;
 
