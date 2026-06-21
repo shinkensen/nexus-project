@@ -130,12 +130,6 @@ setInterval(() => {
       }
       continue;
     }
-    
-    if (!p.shark && p.x < 250) {
-      p.gold += 10 / TICK_RATE;
-    } else if (p.shark && p.x > 1115) {
-      p.gold += 10 / TICK_RATE;
-    }
 
     const len = Math.hypot(p.dx, p.dy);
     if (len > 0.01) {
@@ -146,6 +140,12 @@ setInterval(() => {
 
       p.x = Math.max(0, Math.min(WORLD_W, p.x));
       p.y = Math.max(0, Math.min(WORLD_H, p.y));
+    }
+
+    if (!p.shark && p.x < 250) {
+      p.gold += 10 / TICK_RATE;
+    } else if (p.shark && p.x > 1115) {
+      p.gold += 10 / TICK_RATE;
     }
   }
 
