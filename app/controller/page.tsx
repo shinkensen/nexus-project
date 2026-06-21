@@ -139,7 +139,6 @@ function MotionInstructionImages() {
     );
 }
 
-// ─── Main Controller ──────────────────────────────────────────────────────────
 
 export default function Controller() {
     const [name, setName] = useState("");
@@ -267,15 +266,16 @@ export default function Controller() {
             const motionDeltaY = currentMotion.y - prev.motionY;
             const accelZDelta = Math.abs(motionDeltaZ);
             const accelYDelta = Math.abs(motionDeltaY);
-
-            if (betaDelta >= SHIELD_BETA_THRESHOLD && accelYDelta >= SHIELD_Z_THRESHOLD) {
-                triggerShield();
-            } else if (betaDelta <= 2) {
+            
+            if (betaDelta <= 2) {
                 if (motionDeltaZ > ATTACK_THRESHOLD) {
                     triggerAttack();
                 }
             }
-        }
+            else if (betaDelta >= SHIELD_BETA_THRESHOLD && accelZDelta >= SHIELD_Z_THRESHOLD) {
+                triggerShield();
+            }
+        } 
 
         prev.alpha = currentOrientation.alpha;
         prev.beta = currentOrientation.beta;
