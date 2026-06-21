@@ -260,7 +260,7 @@ export default function Controller() {
             triggerShield();
         }
     }
-
+ 
     function triggerAttack() {
         if (!channelRef.current) return;
         if (shieldTimeoutRef.current) return; // can't attack w/ shield on
