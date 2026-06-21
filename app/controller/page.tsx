@@ -63,7 +63,7 @@ function ActionButtons({ channelRef }: { channelRef: React.MutableRefObject<any>
 // phone controls
 
 const SHIELD_BETA_THRESHOLD = 6;
-const SHIELD_Z_THRESHOLD = 40;
+const SHIELD_Z_THRESHOLD = 60;
 const SHIELD_DURATION = 3000;
 const GYRO_POLL_MS = 50; // matches input streaming cadence
 
