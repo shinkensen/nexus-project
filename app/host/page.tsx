@@ -13,7 +13,8 @@ export default function Host() {
         import("@geckos.io/client")
             .then((module) => {
                 const geckos = module.default;
-                channel = geckos({ port: 3001 });
+                const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost";
+                channel = geckos({ url: backendUrl, port: 3001 });
 
                 channel.onConnect((error: any) => {
                     if (error) {
