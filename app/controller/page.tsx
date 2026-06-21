@@ -454,8 +454,6 @@ export default function Game({
         dy /= len;
       }
 
-      // Send our input to the server at a throttled rate (the server owns
-      // position integration in its own tick loop, mirrors Controller.tsx).
       if (now - lastBroadcast >= BROADCAST_INTERVAL_MS) {
         socket.emit("input", { dx, dy });
         lastBroadcast = now;
@@ -476,9 +474,6 @@ export default function Game({
 
     requestAnimationFrame(loop);
 
-    // Periodically push a snapshot of the live sensor/game values into
-    // React state so the debug overlay can render them without forcing
-    // a re-render on every animation frame.
     const debugInterval = setInterval(() => {
       setDebugData({
         orientation: debugRef.current.orientation ?? null,
