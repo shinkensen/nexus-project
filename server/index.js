@@ -62,6 +62,10 @@ function createPlayer(id, name) {
       cat++;
     }
   }
+
+  WORLD.teams.shark.gold += 200;
+  WORLD.teams.cat.gold += 200;
+
   return {
     id,
     name,
@@ -169,8 +173,10 @@ setInterval(() => {
 
     if (!p.shark && p.x < 2500) {
       p.gold += 1;
+      WORLD.teams.shark.gold -= 1;
     } else if (p.shark && p.x > 13000) {
       p.gold += 1;
+      WORLD.teams.cat.gold -= 1;
     }
 
     if (!p.shark && p.x > 13000) {
