@@ -8,10 +8,13 @@ const io = new Server(server, {
   cors: { origin: "*" },
 });
 
-const TICK_RATE = 20; // 20 updates/sec
+const TICK_RATE = 20;
+
+// -------------------- WORLD STATE --------------------
 
 const WORLD = {
   players: new Map(),
+  attacks: new Map(),
 };
 
 function createPlayer(id) {
@@ -24,12 +27,14 @@ function createPlayer(id) {
   };
 }
 
-// INPUT from controllers
+// -------------------- CONNECTIONS --------------------
+
 io.on("connection", (socket) => {
   console.log("connected:", socket.id);
 
   WORLD.players.set(socket.id, createPlayer(socket.id));
 
+  // movement input
   socket.on("input", (data) => {
     const p = WORLD.players.get(socket.id);
     if (!p) return;
@@ -38,16 +43,37 @@ io.on("connection", (socket) => {
     p.dy = data.dy;
   });
 
+  socket.on("attack", (data) => {
+    const p = WORLD.players.get(socket.id);
+    if (!p) return;
+
+    const attack = {
+      id: crypto.randomUUID?.() ?? Math.random().toString(36).slice(2),
+      attackerId: socket.id,
+      x: p.x,
+      y: p.y,
+      angle: data.angle, // radians
+      timestamp: Date.now(),
+    };
+
+    WORLD.attacks.set(attack.id, attack);
+
+    // broadcast instantly
+    io.emit("attack", attack);
+  });
+
   socket.on("disconnect", () => {
     WORLD.players.delete(socket.id);
   });
 });
 
-// GAME LOOP
+// -------------------- GAME LOOP --------------------
+
 setInterval(() => {
   const dt = 1 / TICK_RATE;
   const SPEED = 300;
 
+  // update players
   for (const p of WORLD.players.values()) {
     const len = Math.hypot(p.dx, p.dy) || 1;
 
@@ -58,11 +84,24 @@ setInterval(() => {
     p.y += ny * SPEED * dt;
   }
 
+  // cleanup old attacks (optional but IMPORTANT)
+  const now = Date.now();
+  for (const [id, atk] of WORLD.attacks) {
+    if (now - atk.timestamp > 1000) {
+      WORLD.attacks.delete(id);
+    }
+  }
+
+  // broadcast world state
   io.emit("state", {
     players: Array.from(WORLD.players.values()),
+    attacks: Array.from(WORLD.attacks.values()),
   });
 }, 1000 / TICK_RATE);
+
+// -------------------- START --------------------
 
 server.listen(3001, () => {
   console.log("server running on :3001");
 });
+

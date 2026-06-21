@@ -61,7 +61,7 @@ export default function Controller() {
     const dy =
       joystickRef.current.y - joystickRef.current.originY;
 
-    const MAX = 80;
+    const MAX = 1000;
 
     const clamped = clampJoystick(dx, dy, MAX);
 
