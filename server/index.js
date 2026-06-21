@@ -47,7 +47,7 @@ const WORLD = {
       gold: 0,
     },
     cat: {
-      gold: 0,  
+      gold: 0,
     }
   }
 };
@@ -141,8 +141,15 @@ setInterval(() => {
       p.respawnTimer -= dt;
       if (p.respawnTimer <= 0) {
         p.alive = true;
-        p.x = WORLD_W / 2 + (Math.random() - 0.5) * 2000;
-        p.y = WORLD_H / 2 + (Math.random() - 0.5) * 2000;
+
+        if (p.shark) {
+          p.x = WORLD_W / 4 + (Math.random() - 0.5) * 2000;
+          p.y = WORLD_H / 4 + (Math.random() - 0.5) * 2000;
+        } else {
+          p.x = (WORLD_W * 3) / 4 + (Math.random() - 0.5) * 2000;
+          p.y = (WORLD_H * 3) / 4 + (Math.random() - 0.5) * 2000;
+        }
+
         p.dx = 0;
         p.dy = 0;
       }
