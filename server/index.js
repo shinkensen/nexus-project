@@ -9,6 +9,7 @@ const io = new Server(server, {
 });
 
 const TICK_RATE = 60;
+const ATTACK_RADIUS = 120;
 
 // -------------------- WORLD STATE --------------------
 
@@ -24,6 +25,8 @@ function createPlayer(id) {
     y: 1500,
     dx: 0,
     dy: 0,
+    shield: false,
+    shark: false,
   };
 }
 
@@ -62,6 +65,13 @@ io.on("connection", (socket) => {
     io.emit("attack", attack);
   });
 
+  socket.on("shield", (data) => {
+    const p = WORLD.players.get(socket.id);
+    if (!p) return;
+
+    p.shield = !!data.shield;
+  });
+
   socket.on("disconnect", () => {
     WORLD.players.delete(socket.id);
   });
@@ -84,19 +94,41 @@ setInterval(() => {
     p.y += ny * SPEED * dt;
   }
 
-  // cleanup old attacks (optional but IMPORTANT)
-  const now = Date.now();
-  for (const [id, atk] of WORLD.attacks) {
-    if (now - atk.timestamp > 1000) {
-      WORLD.attacks.delete(id);
+  for (const atk of WORLD.attacks.values()) {
+    for (const p of WORLD.players.values()) {
+      if (!p.alive) continue;
+      if (p.id === atk.attackerId) continue;
+
+      const dx = p.x - atk.x;
+      const dy = p.y - atk.y;
+      const dist = Math.hypot(dx, dy);
+
+      if (dist < ATTACK_RADIUS) {
+        if (!p.shield) {
+          // 👇 placeholder "kill"
+          p.alive = false;
+        }
+      }
     }
   }
 
-  // broadcast world state
-  io.emit("state", {
-    players: Array.from(WORLD.players.values()),
-    attacks: Array.from(WORLD.attacks.values()),
-  });
+  for (const p of WORLD.players.values()) {
+    if (!p.alive) continue;
+
+    // cleanup old attacks (optional but IMPORTANT)
+    const now = Date.now();
+    for (const [id, atk] of WORLD.attacks) {
+      if (now - atk.timestamp > 1000) {
+        WORLD.attacks.delete(id);
+      }
+    }
+
+    // broadcast world state
+    io.emit("state", {
+      players: Array.from(WORLD.players.values()),
+      attacks: Array.from(WORLD.attacks.values()),
+    });
+  }
 }, 1000 / TICK_RATE);
 
 // -------------------- START --------------------
