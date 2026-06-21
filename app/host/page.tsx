@@ -38,7 +38,10 @@ export default function Host() {
 
                     // Full world state (players)
                     channel.on("state", (state: any) => {
-                        playersRef.current = state.players || [];
+                        playersRef.current = (state.players || []).map((p: any) => ({
+                            ...p,
+                            gold: p.gold ?? 0,
+                        }));
                     });
 
                     // Attack visual effects
@@ -87,13 +90,15 @@ export default function Host() {
         }
 
         function drawPlayers() {
-            const SPRITE_SIZE = 60;
+            const SPRITE_SIZE = 90;
 
             for (const p of playersRef.current) {
                 if (!p.alive) continue;
 
                 const px = p.x * WORLD_SCALE;
                 const py = p.y * WORLD_SCALE;
+
+                console.log(`[HOST LOG] Drawing player ${p.name} at (${px.toFixed(1)}, ${py.toFixed(1)}) with gold: ${p.gold}`);
 
                 // Draw sprite (cat or shark)
                 let img = p.shark ? sharkImg : catImg;
@@ -109,6 +114,16 @@ export default function Host() {
                 ctx.font = "bold 14px system-ui, sans-serif";
                 ctx.textAlign = "center";
                 ctx.fillText(p.name || "Anonymous", px, py - SPRITE_SIZE / 2 - 6);
+
+                // player gold count IF greater than 0
+                if (p.gold > 0) {
+                    ctx.fillStyle = "#ffd700";
+                    ctx.font = "bold 12px system-ui, sans-serif";
+                    ctx.textAlign = "center";
+                    ctx.fillText(`Gold: ${p.gold}`, px, py + SPRITE_SIZE / 2 + 16);
+                }
+
+                console.log(p.gold);
             }
         }
 
@@ -145,9 +160,10 @@ export default function Host() {
 
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // Background
-            ctx.fillStyle = "#0f0f1b";
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            // Background from image
+            const bgImg = new Image();
+            bgImg.src = "/assets/map/combined_sides.png";
+            ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
 
             drawAttackFX();
             drawPlayers();
