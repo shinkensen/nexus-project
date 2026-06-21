@@ -1,15 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { supabase } from "../backend/supabase";
-import { addAttack, setPosition, setShield } from "../backend/funcs";
+import { io } from "socket.io-client";
+
 const WORLD_WIDTH = 3000;
 const WORLD_HEIGHT = 3000;
 
 export const PLAYER_SIZE = 100;
-export const PLAYER_SPEED = 1000; 
+export const PLAYER_SPEED = 1000;
 
-const ATTACK_COOLDOWN_TIME = 4; 
+const ATTACK_COOLDOWN_TIME = 4;
 const SHIELD_COOLDOWN_TIME = 3;
 
 const SHIELD_BETA_THRESHOLD = 10;
@@ -17,14 +17,17 @@ const SHIELD_Y_THRESHOLD = 80;
 const SHIELD_DURATION = 3000;
 const BURN_DURATION = 1000;
 
-
 const ATTACK_ACCEL_THRESHOLD = 8;
 
 const BROADCAST_INTERVAL_MS = 100;
 const DEBUG_REFRESH_MS = 100;
 
+const SOCKET_URL = "http://localhost:3001";
+
 type Orientation = { alpha: number; beta: number; gamma: number };
 type Motion = { x: number; y: number; z: number };
+
+type ServerPlayer = { id: string; x: number; y: number; dx: number; dy: number };
 
 type DebugSnapshot = {
   orientation: Orientation | null;
@@ -98,14 +101,12 @@ export default function Game({
     debugRef.current = { orientation, motion };
   }, [orientation, motion]);
 
-
   useEffect(() => {
     const canvas = canvasRef.current!;
     const ctx = canvas.getContext("2d")!;
 
     let width = window.innerWidth;
     let height = window.innerHeight;
-
 
     function resize() {
       width = window.innerWidth;
@@ -134,30 +135,42 @@ export default function Game({
       y: WORLD_HEIGHT / 2,
     };
 
-    const selfId =
-      typeof crypto !== "undefined" && crypto.randomUUID
-        ? crypto.randomUUID()
-        : Math.random().toString(36).slice(2);
+    const socket = io(SOCKET_URL);
+    let selfId: string | null = null;
 
-    const players: Record<string, { x: number, y: number, dx: number, dy: number, lastUpdate: number }> = {};
+    socket.on("connect", () => {
+      selfId = socket.id ?? null;
+    });
 
-    const channel = supabase.channel('game_room')
-      .on(
-        'broadcast',
-        { event: 'joystick' },
-        (payload) => {
-          const { uuid, dx, dy } = payload.payload;
-          if (uuid === selfId) return;
+    // TODO: BACKEND - server's createPlayer() in server.js doesn't accept a
+    // name yet, so playerName never reaches the server. Once it does, send it
+    // here, e.g. socket.emit("join", { name: playerName }).
 
-          if (!players[uuid]) {
-            players[uuid] = { x: WORLD_WIDTH / 2, y: WORLD_HEIGHT / 2, dx: 0, dy: 0, lastUpdate: performance.now() };
-          }
-          players[uuid].dx = dx;
-          players[uuid].dy = dy;
-          players[uuid].lastUpdate = performance.now();
+    const players: Record<
+      string,
+      { x: number; y: number; dx: number; dy: number; lastUpdate: number }
+    > = {};
+
+    socket.on("state", (payload: { players: ServerPlayer[] }) => {
+      const now = performance.now();
+      const liveIds = new Set<string>();
+
+      for (const p of payload.players) {
+        liveIds.add(p.id);
+
+        if (p.id === selfId) {
+          localPlayer.x = p.x;
+          localPlayer.y = p.y;
+          continue;
         }
-      )
-      .subscribe();
+
+        players[p.id] = { x: p.x, y: p.y, dx: p.dx, dy: p.dy, lastUpdate: now };
+      }
+
+      for (const id of Object.keys(players)) {
+        if (!liveIds.has(id)) delete players[id];
+      }
+    });
 
     function keyDown(e: KeyboardEvent) {
       keys[e.key.toLowerCase()] = true;
@@ -200,7 +213,6 @@ export default function Game({
       touchInput.active = false;
       touchInput.pointerId = -1;
     }
-
 
     window.addEventListener("keydown", keyDown);
     window.addEventListener("keyup", keyUp);
@@ -257,7 +269,6 @@ export default function Game({
       const motionDeltaY = prevMotionY !== null ? currentMotion.y - prevMotionY : 0;
       const motionDeltaZ = prevMotionZ !== null ? currentMotion.z - prevMotionZ : 0;
 
-
       if (
         prevAlpha !== null &&
         prevBeta !== null &&
@@ -280,27 +291,27 @@ export default function Game({
         debugStats.accelYDelta = accelYDelta;
         debugStats.accelZDelta = accelZDelta;
         debugStats.attackTriggered = false;
-        
+
         // shield detection
         if (betaDelta >= SHIELD_BETA_THRESHOLD && accelZDelta >= SHIELD_Y_THRESHOLD) {
-          const playerUuid = localStorage.getItem("player_uuid");
-          if (playerUuid) {
-
-            if (shieldTimer) {
-              clearTimeout(shieldTimer);
-            }
-
-            void setShield(playerUuid, true);
-            debugStats.shieldActive = true;
-            debugStats.lastTrigger = performance.now();
-
-            shieldTimer = setTimeout(() => {
-              void setShield(playerUuid, false);
-              shieldTimer = null;
-              debugStats.shieldActive = false;
-            }, SHIELD_DURATION);
+          if (shieldTimer) {
+            clearTimeout(shieldTimer);
           }
 
+          // TODO: BACKEND - server.js only has a socket.on("input", ...) handler
+          // right now. There's no "shield" event wired up server-side, so this
+          // currently only updates local debug state and does nothing to the
+          // actual game. Once the server adds a shield handler, this should be:
+          //   socket.emit("shield", { active: true });
+          debugStats.shieldActive = true;
+          debugStats.lastTrigger = performance.now();
+
+          shieldTimer = setTimeout(() => {
+            // TODO: BACKEND - same as above, no server-side shield handler yet.
+            //   socket.emit("shield", { active: false });
+            shieldTimer = null;
+            debugStats.shieldActive = false;
+          }, SHIELD_DURATION);
         }
 
         // attack detection
@@ -322,10 +333,14 @@ export default function Game({
             debugStats.attackVectorY = attackVectorY;
             debugStats.attackTriggered = true;
 
-            const playerUuid = localStorage.getItem("player_uuid");
-            if (playerUuid) {
-              addAttack(playerUuid, { x: dx, y: dy }, Date.now(), attackDirection);
-            }
+            // TODO: BACKEND - same story as shield above: server.js has no
+            // "attack" event handler yet, so there's nowhere on the backend
+            // for this to land. Once it exists, this should be:
+            //   socket.emit("attack", {
+            //     origin: { x: dx, y: dy },
+            //     timestamp: Date.now(),
+            //     direction: attackDirection,
+            //   });
 
             return;
           }
@@ -339,7 +354,6 @@ export default function Game({
       prevMotionY = currentMotion.y;
       prevMotionZ = currentMotion.z;
     }
-
 
     function loop(now: number) {
       const dt = (now - last) / 1000;
@@ -376,22 +390,20 @@ export default function Game({
           dy += (touchDy / touchDistance) * touchStrength;
         }
       }
-      
-      // normalized mpovement
+
+      // normalized movement
       if (dx !== 0 || dy !== 0) {
         const len = Math.hypot(dx, dy);
         dx /= len;
         dy /= len;
       }
 
-      // supabase update position of the player
-      const playerUuid = localStorage.getItem("player_uuid");
-      if (playerUuid) {
-        setPosition(playerUuid, { x: dx, y: dy });
+      // Send our input to the server at a throttled rate (the server owns
+      // position integration in its own tick loop, mirrors Controller.tsx).
+      if (now - lastBroadcast >= BROADCAST_INTERVAL_MS) {
+        socket.emit("input", { dx, dy });
+        lastBroadcast = now;
       }
-
-
-
 
       ctx.fillStyle = "#181818";
       ctx.fillRect(0, 0, width, height);
@@ -399,20 +411,15 @@ export default function Game({
       ctx.strokeStyle = "#2f2f2f";
       ctx.lineWidth = 1;
 
-
       gyroAndAccelHandler(dx, dy);
 
       // playerShieldApplier(cameraX, cameraY);
-
 
       requestAnimationFrame(loop);
     }
 
     requestAnimationFrame(loop);
 
-    // Periodically push a snapshot of the live sensor/game values into
-    // React state so the debug overlay can render them without forcing
-    // a re-render on every animation frame.
     const debugInterval = setInterval(() => {
       setDebugData({
         orientation: debugRef.current.orientation ?? null,
@@ -431,7 +438,7 @@ export default function Game({
         shieldActive: debugStats.shieldActive,
         lastTrigger: debugStats.lastTrigger,
         fps: debugStats.fps,
-        playerUuid: localStorage.getItem("player_uuid"),
+        playerUuid: selfId,
         localPos: { x: localPlayer.x, y: localPlayer.y },
       });
     }, DEBUG_REFRESH_MS);
@@ -448,7 +455,7 @@ export default function Game({
         clearTimeout(shieldTimer);
       }
       clearInterval(debugInterval);
-      supabase.removeChannel(channel);
+      socket.disconnect();
     };
   }, []);
 
