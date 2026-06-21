@@ -176,7 +176,9 @@ export default function Host() {
             ctx.fillStyle = "#ffffff";
             ctx.font = "bold 18px system-ui, sans-serif";
             ctx.textAlign = "left";
+            ctx.fillText(`Shark Team Gold: ${teamRef.current.shark}`, 20, 30);
             ctx.textAlign = "right";
+            ctx.fillText(`Cat Team Gold: ${teamRef.current.cat}`, canvas.width - 20, 30);
 
             requestAnimationFrame(loop);
         }

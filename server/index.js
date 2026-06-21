@@ -211,6 +211,7 @@ setInterval(() => {
 
   io.emit("state", {
     players: Array.from(WORLD.players.values()),
+    teams: WORLD.teams,
   });
 }, 1000 / TICK_RATE);
 
