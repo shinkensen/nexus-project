@@ -16,7 +16,7 @@ function clampJoystick(dx: number, dy: number, max: number) {
 const SHIELD_BETA_THRESHOLD = 45;
 const SHIELD_DURATION = 3000;
 
-const ATTACK_THRESHOLD = 4;
+const ATTACK_THRESHOLD = 7;
 const ATTACK_COOLDOWN_TIME = 300;
 const GYRO_POLL_MS = 50;
 
@@ -267,7 +267,7 @@ export default function Controller() {
             const accelZDelta = Math.abs(motionDeltaZ);
             const accelYDelta = Math.abs(motionDeltaY);
             
-            if (betaDelta <= 8 && motionDeltaZ > ATTACK_THRESHOLD) {
+            if (betaDelta <= 8 && accelZDelta > ATTACK_THRESHOLD) {
                 triggerAttack();
             }
             else if (gammaDelta >= SHIELD_BETA_THRESHOLD) {
