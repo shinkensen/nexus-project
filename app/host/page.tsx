@@ -15,12 +15,13 @@ export default function Host() {
         if (backendUrl && !backendUrl.startsWith("http://") && !backendUrl.startsWith("https://")) {
             backendUrl = `http://${backendUrl}`;
         }
-        console.log(`[HOST LOG] Attempting connection. Target URL: ${backendUrl}, Port: 3001`);
+        const isHttps = backendUrl.startsWith("https://");
+        console.log(`[HOST LOG] Attempting connection. Target URL: ${backendUrl}, Port: ${isHttps ? "default/443" : "3001"}`);
 
         import("@geckos.io/client")
             .then((module) => {
                 const geckos = module.default;
-                channel = geckos({ url: backendUrl, port: 3001 });
+                channel = geckos({ url: backendUrl, port: isHttps ? null : 3001 });
 
                 channel.onConnect((error: any) => {
                     if (error) {

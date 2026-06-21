@@ -14,14 +14,15 @@ export default function Controller() {
         if (backendUrl && !backendUrl.startsWith("http://") && !backendUrl.startsWith("https://")) {
             backendUrl = `http://${backendUrl}`;
         }
-        console.log(`[CLIENT LOG] Attempting connection. Target URL: ${backendUrl}, Port: 3001`);
-        setStatusMsg(`Connecting to ${backendUrl}:3001...`);
+        const isHttps = backendUrl.startsWith("https://");
+        console.log(`[CLIENT LOG] Attempting connection. Target URL: ${backendUrl}, Port: ${isHttps ? "default/443" : "3001"}`);
+        setStatusMsg(`Connecting to ${backendUrl}...`);
         
         // Dynamic import to prevent any SSR issues with WebRTC objects in Next.js build
         import("@geckos.io/client")
             .then((module) => {
                 const geckos = module.default;
-                const channel = geckos({ url: backendUrl, port: 3001 });
+                const channel = geckos({ url: backendUrl, port: isHttps ? undefined : 3001 });
 
                 channel.onConnect((error) => {
                     if (error) {
