@@ -32,7 +32,7 @@ function ActionButtons({ channelRef }: { channelRef: React.MutableRefObject<any>
 
     const handleAttack = () => {
         if (attackCooldown || !channelRef.current) return;
-        channelRef.current.emit("attack");
+        channelRef.current.emit("attack", {});
         setAttackCooldown(true);
         setTimeout(() => setAttackCooldown(false), ATTACK_COOLDOWN_TIME);
     };

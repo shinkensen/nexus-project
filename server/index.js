@@ -30,10 +30,10 @@ app.get("/", (req, res) => {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const TICK_RATE = 60;
-const SPEED = 3000;           // units per second
-const ATTACK_RANGE = 4000;    // units
+const SPEED = 3000;
+const ATTACK_RANGE = 4000;
 const ATTACK_ANGLE = Math.PI / 6;
-const RESPAWN_TIME = 3;       // seconds
+const RESPAWN_TIME = 3;
 const WORLD_W = 20000;
 const WORLD_H = 10000;
 
@@ -52,7 +52,7 @@ function createPlayer(id, name) {
     dx: 0,
     dy: 0,
     angle: 0,
-    shark: Math.random() < 0.5,   // randomly assigned team
+    shark: Math.random() < 0.5,
     shield: false,
     attackRequested: false,
     alive: true,
@@ -72,7 +72,6 @@ function angleDiff(a, b) {
 io.onConnection((channel) => {
   console.log(`[SERVER LOG] New connection. ID: ${channel.id}`);
 
-  // Player joins after entering their name on the controller
   channel.on("join", (data) => {
     const name = data?.name || "Anonymous";
     console.log(`[SERVER LOG] Join: ${channel.id} as "${name}"`);
@@ -80,13 +79,12 @@ io.onConnection((channel) => {
     console.log(`[SERVER LOG] Active players: ${WORLD.players.size}`);
   });
 
-  // Movement input — also updates facing angle
   channel.on("input", (data) => {
     const p = WORLD.players.get(channel.id);
     if (!p) return;
 
-    p.dx = data.dx ?? 0;
-    p.dy = data.dy ?? 0;
+    p.dx = data?.dx ?? 0;
+    p.dy = data?.dy ?? 0;
 
     const len = Math.hypot(p.dx, p.dy);
     if (len > 0.01) {
@@ -94,14 +92,13 @@ io.onConnection((channel) => {
     }
   });
 
-  // Attack — flagged and resolved on next tick for deterministic hit detection
-  channel.on("attack", () => {
+  // Attack — payload is always an object (even if empty {}) so data is never null
+  channel.on("attack", (data) => {
     const p = WORLD.players.get(channel.id);
     if (!p || !p.alive) return;
     p.attackRequested = true;
   });
 
-  // Shield toggle
   channel.on("shield", (data) => {
     const p = WORLD.players.get(channel.id);
     if (!p) return;
@@ -120,13 +117,11 @@ io.onConnection((channel) => {
 setInterval(() => {
   const dt = 1 / TICK_RATE;
 
-  // ── Movement & respawn ───────────────────────────────────────────────────
   for (const p of WORLD.players.values()) {
     if (!p.alive) {
       p.respawnTimer -= dt;
       if (p.respawnTimer <= 0) {
         p.alive = true;
-        // Respawn near center with small random offset
         p.x = WORLD_W / 2 + (Math.random() - 0.5) * 2000;
         p.y = WORLD_H / 2 + (Math.random() - 0.5) * 2000;
         p.dx = 0;
@@ -142,19 +137,16 @@ setInterval(() => {
       p.x += nx * SPEED * dt;
       p.y += ny * SPEED * dt;
 
-      // World bounds clamping
       p.x = Math.max(0, Math.min(WORLD_W, p.x));
       p.y = Math.max(0, Math.min(WORLD_H, p.y));
     }
   }
 
-  // ── Combat ───────────────────────────────────────────────────────────────
   for (const attacker of WORLD.players.values()) {
     if (!attacker.attackRequested || !attacker.alive) continue;
 
     attacker.attackRequested = false;
 
-    // Broadcast attack FX to all clients (world-space coordinates)
     io.emit("attack_fx", {
       x: attacker.x,
       y: attacker.y,
@@ -165,7 +157,7 @@ setInterval(() => {
       if (victim === attacker) continue;
       if (!victim.alive) continue;
       if (victim.shield) continue;
-      if (attacker.shark === victim.shark) continue; // friendly fire disabled
+      if (attacker.shark === victim.shark) continue;
 
       const dx = victim.x - attacker.x;
       const dy = victim.y - attacker.y;
@@ -182,7 +174,6 @@ setInterval(() => {
     }
   }
 
-  // ── Broadcast world state ─────────────────────────────────────────────────
   io.emit("state", {
     players: Array.from(WORLD.players.values()),
   });
