@@ -54,16 +54,36 @@ const WORLD = {
 };
 
 function createPlayer(id, name) {
+  let shark = 0, cat = 0;
+  for (const p of WORLD.players.values()) {
+    if (p.shark) {
+      shark++;
+    }
+    else {
+      cat++;
+    }
+  }
+
+  WORLD.teams.shark.gold += 200;
+  WORLD.teams.cat.gold += 200;
+
+  ranX = (WORLD_W / 4 + (Math.random() - 0.5) * 2000) + ((WORLD_W * 3) / 4 + (Math.random() - 0.5) * 2000);
+  ranY = (WORLD_H / 4 + (Math.random() - 0.5) * 2000) + ((WORLD_H * 3) / 4 + (Math.random() - 0.5) * 2000);
+
   return {
     id,
     name,
-    x: 1500,
-    y: 1500,
+    x: ranX,
+    y: ranY,
     dx: 0,
     dy: 0,
+    angle: 0,
+    shark: shark < cat ? true : false,
     shield: false,
-    shark: false,
+    attackRequested: false,
     alive: true,
+    respawnTimer: 0,
+    gold: 0,
   };
 }
 
