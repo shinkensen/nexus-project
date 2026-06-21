@@ -150,7 +150,6 @@ channel.onDisconnect(() => {
   WORLD.players.delete(channel.id);
   console.log(`[SERVER LOG] Active Players count: ${WORLD.players.size}`);
 });
-});
 
 // -------------------- GAME LOOP --------------------
 
