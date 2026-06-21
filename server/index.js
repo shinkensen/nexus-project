@@ -8,7 +8,7 @@ const io = new Server(server, {
   cors: { origin: "*" },
 });
 
-const TICK_RATE = 20; // 20 updates/sec
+const TICK_RATE = 60; // 20 updates/sec
 
 const WORLD = {
   players: new Map(),
@@ -46,7 +46,7 @@ io.on("connection", (socket) => {
 // GAME LOOP
 setInterval(() => {
   const dt = 1 / TICK_RATE;
-  const SPEED = 300;
+  const SPEED = 3000;
 
   for (const p of WORLD.players.values()) {
     const len = Math.hypot(p.dx, p.dy) || 1;
