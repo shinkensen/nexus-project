@@ -10,11 +10,11 @@ export default function Controller() {
 
     function connectAndJoin(playerName: string) {
         setStatusMsg("Connecting...");
-        // Dynamic import to prevent any SSR issues with WebRTC objects in Next.js build
+        // Dynamic import todd prevent any SSR issues with WebRTC objects in Next.js build
         import("@geckos.io/client")
             .then((module) => {
                 const geckos = module.default;
-                const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost";
+                const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://165.22.144.193";
                 const channel = geckos({ url: backendUrl, port: 3001 });
 
                 channel.onConnect((error) => {
