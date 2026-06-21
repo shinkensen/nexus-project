@@ -10,7 +10,7 @@ const TICK_RATE = 60;
 
 // ===== WORLD SCALE (pure units, no pixels here) =====
 const SPEED = 3000;              // units per second
-const ATTACK_RANGE = 2000;       // units
+const ATTACK_RANGE = 4000;       // units
 const ATTACK_ANGLE = Math.PI / 6;
 
 const WORLD = {
@@ -26,6 +26,9 @@ function createPlayer(id) {
         dx: 0,
         dy: 0,
         angle: 0,
+
+        // random
+        shark: Math.random() < 0.5,
 
         shield: false,
         attackRequested: false,
@@ -118,6 +121,7 @@ setInterval(() => {
             if (victim === attacker) continue;
             if (!victim.alive) continue;
             if (victim.shield) continue;
+            if (attacker.shark == victim.shark) continue; // same type can't hurt each other
 
             const dx = victim.x - attacker.x;
             const dy = victim.y - attacker.y;

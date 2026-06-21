@@ -71,16 +71,27 @@ export default function Host() {
 
             // ===== players =====
             for (const p of playersRef.current) {
-                ctx.fillStyle = "white";
-                ctx.beginPath();
-                ctx.arc(
-                    p.x * WORLD_SCALE,
-                    p.y * WORLD_SCALE,
-                    10,
-                    0,
-                    Math.PI * 2
+                // ctx.fillStyle = "white";
+                // ctx.beginPath();
+                // ctx.arc(
+                //     p.x * WORLD_SCALE,
+                //     p.y * WORLD_SCALE,
+                //     10,
+                //     0,
+                //     Math.PI * 2
+                // );
+                // ctx.fill();
+                // fill sprite in from assets/sprites
+                const img = new Image();
+                img.src = p.shark ? "/assets/sprites/shark-removebg-preview.png" : "/assets/sprites/cat-removebg-preview.png";
+                const size = 60;
+                ctx.drawImage(
+                    img,
+                    p.x * WORLD_SCALE - size / 2,
+                    p.y * WORLD_SCALE - size / 2,
+                    size,
+                    size
                 );
-                ctx.fill();
             }
 
             // ===== attack FX =====
