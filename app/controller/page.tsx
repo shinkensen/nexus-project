@@ -17,7 +17,7 @@ const SHIELD_BETA_THRESHOLD = 45;
 const SHIELD_Z_THRESHOLD = 30;
 const SHIELD_DURATION = 3000;
 
-const ATTACK_THRESHOLD = 8;
+const ATTACK_THRESHOLD = 5;
 const ATTACK_COOLDOWN_TIME = 300;
 const GYRO_POLL_MS = 50;
 
@@ -268,8 +268,8 @@ export default function Controller() {
             const accelZDelta = Math.abs(motionDeltaZ);
             const accelYDelta = Math.abs(motionDeltaY);
             
-            if (betaDelta <= 2) {
-                if (motionDeltaZ > ATTACK_THRESHOLD) {
+            if (betaDelta <= 6) {
+                if (motionDeltaZ >= ATTACK_THRESHOLD) {
                     triggerAttack();
                 }
             }
