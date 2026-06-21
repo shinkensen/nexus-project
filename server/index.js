@@ -1,12 +1,13 @@
 import express from "express";
 import http from "http";
-import { Server } from "socket.io";
+import geckos from "@geckos.io/server";
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, {
-  cors: { origin: "*" },
+const io = geckos({
+  cors: { allowAuthorization: true },
 });
+io.addServer(server);
 
 const TICK_RATE = 60;
 const ATTACK_RADIUS = 120;
@@ -18,41 +19,48 @@ const WORLD = {
   attacks: new Map(),
 };
 
-function createPlayer(id) {
+function createPlayer(id, name) {
   return {
     id,
+    name,
     x: 1500,
     y: 1500,
     dx: 0,
     dy: 0,
     shield: false,
     shark: false,
+    alive: true,
   };
 }
 
 // -------------------- CONNECTIONS --------------------
 
-io.on("connection", (socket) => {
-  console.log("connected:", socket.id);
+io.onConnection((channel) => {
+  console.log("connected:", channel.id);
 
-  WORLD.players.set(socket.id, createPlayer(socket.id));
+  // We add to WORLD players map only when the controller completes name entry and joins
+  channel.on("join", (data) => {
+    const name = data?.name || "Anonymous";
+    console.log(`Player ${name} (${channel.id}) joined`);
+    WORLD.players.set(channel.id, createPlayer(channel.id, name));
+  });
 
   // movement input
-  socket.on("input", (data) => {
-    const p = WORLD.players.get(socket.id);
+  channel.on("input", (data) => {
+    const p = WORLD.players.get(channel.id);
     if (!p) return;
 
     p.dx = data.dx;
     p.dy = data.dy;
   });
 
-  socket.on("attack", (data) => {
-    const p = WORLD.players.get(socket.id);
+  channel.on("attack", (data) => {
+    const p = WORLD.players.get(channel.id);
     if (!p) return;
 
     const attack = {
       id: crypto.randomUUID?.() ?? Math.random().toString(36).slice(2),
-      attackerId: socket.id,
+      attackerId: channel.id,
       x: p.x,
       y: p.y,
       angle: data.angle, // radians
@@ -65,15 +73,16 @@ io.on("connection", (socket) => {
     io.emit("attack", attack);
   });
 
-  socket.on("shield", (data) => {
-    const p = WORLD.players.get(socket.id);
+  channel.on("shield", (data) => {
+    const p = WORLD.players.get(channel.id);
     if (!p) return;
 
     p.shield = !!data.shield;
   });
 
-  socket.on("disconnect", () => {
-    WORLD.players.delete(socket.id);
+  channel.onDisconnect(() => {
+    console.log("disconnected:", channel.id);
+    WORLD.players.delete(channel.id);
   });
 });
 
@@ -122,13 +131,13 @@ setInterval(() => {
         WORLD.attacks.delete(id);
       }
     }
-
-    // broadcast world state
-    io.emit("state", {
-      players: Array.from(WORLD.players.values()),
-      attacks: Array.from(WORLD.attacks.values()),
-    });
   }
+
+  // broadcast world state to all connected channels
+  io.emit("state", {
+    players: Array.from(WORLD.players.values()),
+    attacks: Array.from(WORLD.attacks.values()),
+  });
 }, 1000 / TICK_RATE);
 
 // -------------------- START --------------------

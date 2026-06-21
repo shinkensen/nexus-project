@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { io } from "socket.io-client";
 
 export default function Host() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -9,14 +8,35 @@ export default function Host() {
     const attacksRef = useRef<any[]>([]);
 
     useEffect(() => {
-        const socket = io("http://localhost:3001");
+        let channel: any = null;
 
-        socket.on("state", (state) => {
-            playersRef.current = state.players;
-            attacksRef.current = state.attacks;
-        });
+        import("@geckos.io/client")
+            .then((module) => {
+                const geckos = module.default;
+                channel = geckos({ port: 3001 });
 
-        return () => socket.disconnect();
+                channel.onConnect((error: any) => {
+                    if (error) {
+                        console.error(error.message);
+                        return;
+                    }
+                    console.log("Host connected to server");
+
+                    channel.on("state", (state: any) => {
+                        playersRef.current = state.players || [];
+                        attacksRef.current = state.attacks || [];
+                    });
+                });
+            })
+            .catch((err) => {
+                console.error("Failed to load geckos client", err);
+            });
+
+        return () => {
+            if (channel) {
+                channel.close();
+            }
+        };
     }, []);
 
     useEffect(() => {
@@ -34,17 +54,32 @@ export default function Host() {
         function loop() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            ctx.fillStyle = "#111";
+            ctx.fillStyle = "#0f0f1b";
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
             for (const p of playersRef.current) {
-                ctx.fillStyle = "white";
+                const px = p.x * 0.1;
+                const py = p.y * 0.1;
+
+                // Draw player circle
+                ctx.fillStyle = "#6366f1";
                 ctx.beginPath();
-                ctx.arc(p.x * 0.1, p.y * 0.1, 10, 0, Math.PI * 2);
+                ctx.arc(px, py, 12, 0, Math.PI * 2);
                 ctx.fill();
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = "#ffffff";
+                ctx.stroke();
+
+                // Draw player name above the circle
+                ctx.fillStyle = "#ffffff";
+                ctx.font = "bold 14px system-ui, sans-serif";
+                ctx.textAlign = "center";
+                ctx.fillText(p.name || "Anonymous", px, py - 20);
             }
 
             for (const a of attacksRef.current) {
+                ctx.strokeStyle = "#ef4444";
+                ctx.lineWidth = 3;
                 ctx.beginPath();
                 ctx.moveTo(a.x, a.y);
                 ctx.lineTo(
@@ -62,5 +97,5 @@ export default function Host() {
         return () => window.removeEventListener("resize", resize);
     }, []);
 
-    return <canvas ref={canvasRef} style={{ width: "100vw", height: "100vh" }} />;
+    return <canvas ref={canvasRef} style={{ width: "100vw", height: "100vh", display: "block" }} />;
 }
