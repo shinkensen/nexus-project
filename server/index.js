@@ -30,17 +30,12 @@ const WORLD_H = 8000;
 
 const WORLD = {
   players: new Map(),
-
+  gameOver: false,
   teams: {
-    shark: {
-      gold: 0,
-    },
-    cat: {
-      gold: 0,
-    }
+    shark: { gold: 0 },
+    cat:   { gold: 0 },
   }
 };
-
 function createPlayer(id, name) {
   let shark = 0, cat = 0;
   for (const p of WORLD.players.values()) {
@@ -131,6 +126,7 @@ io.onConnection((channel) => {
 // ─── Game loop ────────────────────────────────────────────────────────────────
 
 setInterval(() => {
+   if (WORLD.gameOver) return;
   const dt = 1 / TICK_RATE;
 
   for (const p of WORLD.players.values()) {
@@ -175,9 +171,17 @@ setInterval(() => {
     if (!p.shark && p.x > 13000) {
       WORLD.teams.cat.gold += p.gold;
       p.gold = 0;
+      if (WORLD.teams.shark.gold <= 0 && !WORLD.gameOver) {
+        WORLD.gameOver = true;
+        io.emit("game_over", { winner: "cat" });
+      }
     } else if (p.shark && p.x < 2500) {
       WORLD.teams.shark.gold += p.gold;
       p.gold = 0;
+      if (WORLD.teams.cat.gold <= 0 && !WORLD.gameOver) {
+        WORLD.gameOver = true;
+        io.emit("game_over", { winner: "shark" });
+      }
     }
   }
 
