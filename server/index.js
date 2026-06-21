@@ -8,7 +8,7 @@ const io = new Server(server, {
   cors: { origin: "*" },
 });
 
-const TICK_RATE = 20;
+const TICK_RATE = 60;
 
 // -------------------- WORLD STATE --------------------
 
@@ -71,7 +71,7 @@ io.on("connection", (socket) => {
 
 setInterval(() => {
   const dt = 1 / TICK_RATE;
-  const SPEED = 300;
+  const SPEED = 3000;
 
   // update players
   for (const p of WORLD.players.values()) {
