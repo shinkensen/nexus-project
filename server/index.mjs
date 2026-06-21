@@ -97,7 +97,7 @@ io.onConnection((channel) => {
     console.log(`[SERVER LOG] Join event received from ID: ${channel.id} with name: "${name}"`);
     WORLD.players.set(channel.id, createPlayer(channel.id, name));
     console.log(`[SERVER LOG] Active Players count: ${WORLD.players.size}`);
-  }); no
+  });
 
   // movement input
   channel.on("input", (data) => {
