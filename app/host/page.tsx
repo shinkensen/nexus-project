@@ -97,6 +97,9 @@ export default function Host() {
         function drawPlayers() {
             const SPRITE_SIZE = 90;
 
+            var cathighestGold = playersRef.current[0];
+            var sharkhighestGold = playersRef.current[0];
+
             for (const p of playersRef.current) {
                 let img = p.shark ? sharkImg : catImg;
                 if (!p.alive){
@@ -109,6 +112,14 @@ export default function Host() {
                     const py = p.y * WORLD_SCALE;
     
                     console.log(`[HOST LOG] Drawing player ${p.name} at (${p.x.toFixed(1)}, ${p.y.toFixed(1)}) with gold: ${p.gold}`);
+
+
+                    if (p.shark){
+                        Math.max(p.gold, sharkhighestGold.gold);
+                    }
+                    else{
+                        Math.max(p.gold, cathighestGold.gold);
+                    }
     
     
                     if (p.shield) {
@@ -125,7 +136,7 @@ export default function Host() {
     
                     if (p.gold > 0) {
                         ctx.fillStyle = "#ffd700";
-                        ctx.font = "bold 12px system-ui, sans-serif";
+                        ctx.font = "bold 26px system-ui, sans-serif";
                         ctx.textAlign = "center";
                         ctx.fillText(`Gold: ${p.gold}`, px, py + SPRITE_SIZE / 2 + 16);
                     }
