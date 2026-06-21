@@ -112,7 +112,7 @@ function MotionInstructionImages() {
             }}
         >
             <img
-                src="assets/ui/instruction_attack-removebg-preview"
+                src="/assets/ui/instruction_attack-removebg-preview.png"
                 alt="push phone toward right direction"
                 style={{
                     width: 120,
@@ -124,7 +124,7 @@ function MotionInstructionImages() {
                 }}
             />
             <img
-                src="assets/ui/instruction_box-removebg-preview"
+                src="/assets/ui/instruction_box-removebg-preview.png"
                 alt="SLAM to shield"
                 style={{
                     width: 120,
@@ -311,7 +311,6 @@ export default function Controller() {
         return () => clearInterval(interval);
     }, [joined]);
 
-    // ── Connect via geckos.io ─────────────────────────────────────────────────
     function connectAndJoin(playerName: string) {
         let backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://165.22.144.193";
         if (backendUrl && !backendUrl.startsWith("http://") && !backendUrl.startsWith("https://")) {
