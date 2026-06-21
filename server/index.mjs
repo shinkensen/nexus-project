@@ -32,8 +32,8 @@ const SPEED = 3000;
 const ATTACK_LENGTH = 4000; // forward distance
 const ATTACK_WIDTH = 1200;  // total width
 const RESPAWN_TIME = 3;
-const WORLD_W = 17000;
-const WORLD_H = 8000;
+const WORLD_W = 16000;
+const WORLD_H = 8200;
 
 const ATTACK_RADIUS = 40000; // hitbox radius for simplicity
 
@@ -70,10 +70,10 @@ function createPlayer(id, name) {
   return {
     id,
     name,
-    // x: (WORLD_W / 4 + (Math.random() - 0.5) * 2000) + ((WORLD_W * 3) / 4 + (Math.random() - 0.5) * 2000),
-    // y: (WORLD_H / 4 + (Math.random() - 0.5) * 2000) + ((WORLD_H * 3) / 4 + (Math.random() - 0.5) * 2000),
-    x: 100,
-    y: 100,
+    x: (WORLD_W / 4 + (Math.random() - 0.5) * 2000) + ((WORLD_W * 3) / 4 + (Math.random() - 0.5) * 2000),
+    y: (WORLD_H / 4 + (Math.random() - 0.5) * 2000) + ((WORLD_H * 3) / 4 + (Math.random() - 0.5) * 2000),
+    // x: 100,
+    // y: 100,
     dx: 0,
     dy: 0,
     angle: 0,
@@ -145,12 +145,35 @@ setInterval(() => {
 
   const deaths = [];
 
-  // 1. MOVEMENT
+  // 1. MOVEMENT & GOLD
   for (const p of players) {
     if (p.alive) {
       const len = Math.hypot(p.dx, p.dy) || 1;
       p.x += (p.dx / len) * SPEED * dt;
       p.y += (p.dy / len) * SPEED * dt;
+
+      if (p.x < 0) p.x = 0;
+      if (p.y < 0) p.y = 0;
+      if (p.x > WORLD_W) p.x = WORLD_W;
+      if (p.y > WORLD_H) p.y = WORLD_H;
+
+      // drain gold in end zone and transfer once in team zone
+      if (p.shark && p.x > 13500 && WORLD.teams.cat.gold > 0) {
+        p.gold++;
+        WORLD.teams.cat.gold--;
+      } else if (!p.shark && p.x < 3200 && WORLD.teams.shark.gold > 0) {
+        p.gold++;
+        WORLD.teams.shark.gold--;
+      }
+
+      if(p.shark && p.x < 3200) {
+        WORLD.teams.shark.gold += p.gold;
+        p.gold = 0;
+      } else if(!p.shark && p.x > 13500) {
+        WORLD.teams.cat.gold += p.gold;
+        p.gold = 0;
+      }
+
     } else {
       p.respawnTimer -= dt;
       if (p.respawnTimer <= 0) {
@@ -208,7 +231,7 @@ setInterval(() => {
     }
   }
 
-  // 4. EMIT
+  // 5. EMIT
   io.emit("state", {
     players: Array.from(WORLD.players.values()),
     teams: WORLD.teams,
