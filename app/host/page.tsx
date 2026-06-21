@@ -50,7 +50,7 @@ export default function Host() {
         let last = performance.now();
 
         const MAX_TIME = 0.25;
-        const RANGE = 400 * 0.1;
+        const RANGE = 400 * 0.25;
         const spread = Math.PI / 3;
 
         function updateFX(dt: number) {
@@ -82,13 +82,16 @@ export default function Host() {
                 ctx.fill();
             }
 
-            // FX
+            const SCALE = 0.1;
+            const RANGE = 4000 * SCALE;
+            const spread = Math.PI / 3;
+
             for (const fx of fxRef.current) {
                 const progress = fx.t / MAX_TIME;
                 const alpha = 1 - progress;
 
-                const x = fx.x * 0.1;
-                const y = fx.y * 0.1;
+                const x = fx.x * SCALE;
+                const y = fx.y * SCALE;
 
                 ctx.fillStyle = `rgba(255, 80, 80, ${alpha * 0.35})`;
 

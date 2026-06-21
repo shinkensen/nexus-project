@@ -11,7 +11,7 @@ const io = new Server(server, {
 const TICK_RATE = 60;
 
 const SPEED = 3000;
-const ATTACK_RANGE = 400;
+const ATTACK_RANGE = 4000;
 const ATTACK_ANGLE = Math.PI / 3; // 60°
 
 const WORLD = {
@@ -141,6 +141,13 @@ setInterval(() => {
       const diff = angleDiff(attacker.angle, targetAngle);
 
       if (diff <= ATTACK_ANGLE / 2) {
+        console.log("HIT", {
+          attacker: attacker.id,
+          victim: victim.id,
+          dist,
+          diff,
+        });
+
         victim.alive = false;
         victim.respawnTimer = 2;
       }
