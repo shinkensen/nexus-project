@@ -142,9 +142,9 @@ setInterval(() => {
       p.y = Math.max(0, Math.min(WORLD_H, p.y));
     }
 
-    if (!p.shark && p.x < 5000) {
+    if (!p.shark && p.x < 2500) {
       p.gold += 1;
-    } else if (p.shark && p.x > 15000) {
+    } else if (p.shark && p.x > 11250) {
       p.gold += 1;
     }
   }

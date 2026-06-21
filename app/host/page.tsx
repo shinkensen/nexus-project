@@ -98,7 +98,7 @@ export default function Host() {
                 const px = p.x * WORLD_SCALE;
                 const py = p.y * WORLD_SCALE;
 
-                console.log(`[HOST LOG] Drawing player ${p.name} at (${px.toFixed(1)}, ${py.toFixed(1)}) with gold: ${p.gold}`);
+                console.log(`[HOST LOG] Drawing player ${p.name} at (${p.x.toFixed(1)}, ${p.y.toFixed(1)}) with gold: ${p.gold}`);
 
                 // Draw sprite (cat or shark)
                 let img = p.shark ? sharkImg : catImg;
@@ -123,7 +123,6 @@ export default function Host() {
                     ctx.fillText(`Gold: ${p.gold}`, px, py + SPRITE_SIZE / 2 + 16);
                 }
 
-                console.log(p.gold);
             }
         }
 
