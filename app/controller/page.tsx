@@ -19,16 +19,16 @@ function clampJoystick(dx: number, dy: number, max: number) {
 const MOBILE_BREAKPOINT = 900;
 
 // Name Input Field Coordinates
-const NAME_INPUT_X = 60;
-const NAME_INPUT_Y = 360;
-const NAME_INPUT_WIDTH = 260;
+const NAME_INPUT_X = 20;
+const NAME_INPUT_Y = 487;
+const NAME_INPUT_WIDTH = 200;
 const NAME_INPUT_HEIGHT = 46;
 
 // Join Button Coordinates
-const JOIN_BUTTON_X = 60;
-const JOIN_BUTTON_Y = 420;
-const JOIN_BUTTON_WIDTH = 260;
-const JOIN_BUTTON_HEIGHT = 50;
+const JOIN_BUTTON_X = 240;
+const JOIN_BUTTON_Y = 460;
+const JOIN_BUTTON_WIDTH = 150;
+const JOIN_BUTTON_HEIGHT = 110;
 
 // Status Text Coordinates
 const STATUS_X = 60;
@@ -432,7 +432,7 @@ export default function Controller() {
                     width: "100vw",
                     height: "100vh",
                     overflow: "hidden",
-                    backgroundColor: "#000000",
+                    backgroundColor: "#20b14c",
                     backgroundImage: isMobile ? `url(${backgroundImage.src})` : "none",
                     backgroundSize: isMobile ? "contain" : "auto",
                     backgroundPosition: "center center",
@@ -463,10 +463,10 @@ export default function Controller() {
                             padding: "0 14px",
                             boxSizing: "border-box",
                             borderRadius: "10px",
-                            border: "1px solid rgba(255,255,255,0.25)",
+                            border: "2px solid rgb(201, 190, 231)",
                             outline: "none",
-                            background: "rgba(0,0,0,0.45)",
-                            color: "#fff",
+                            background: "rgb(201, 190, 231)",
+                            color: "#111",
                             fontSize: "16px",
                         }}
                     />
@@ -481,11 +481,13 @@ export default function Controller() {
                             height: JOIN_BUTTON_HEIGHT,
                             border: "none",
                             borderRadius: "10px",
+                            paddingTop: "10px",
+                            paddingBottom:"10px",
                             cursor: "pointer",
                             fontSize: "16px",
                             fontWeight: 700,
-                            color: "#fff",
-                            background: "#4f46e5",
+                            color: "rgb(164, 73, 163,0)",
+                            background: "rgb(164, 73, 163,0)",
                         }}
                     >
                         Join Game
