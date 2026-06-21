@@ -9,11 +9,7 @@ export default function HomePage() {
   useEffect(() => {
     const uuid = localStorage.getItem("player_uuid");
 
-    if (!uuid) {
-      router.replace("/join");
-    } else {
-      router.replace("/game");
-    }
+  router.push('/controller')
   }, [router]);
 
   return null;
