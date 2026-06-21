@@ -2,21 +2,27 @@
 
 import { useEffect, useRef } from "react";
 
+const WORLD_SCALE = 0.1;
+const ATTACK_RANGE_WORLD = 4000;
+const ATTACK_RANGE_SCREEN = ATTACK_RANGE_WORLD * WORLD_SCALE;
+const ATTACK_ANGLE = Math.PI / 6;
+const FX_MAX_TIME = 0.25;
+
 export default function Host() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const playersRef = useRef<any[]>([]);
-    const attacksRef = useRef<any[]>([]);
+    const fxRef = useRef<any[]>([]);
 
+    // ── geckos.io connection ──────────────────────────────────────────────────
     useEffect(() => {
         let channel: any = null;
 
         let backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://165.22.144.193";
-        // Ensure the URL is absolute by prepending http:// if protocol is missing
         if (backendUrl && !backendUrl.startsWith("http://") && !backendUrl.startsWith("https://")) {
             backendUrl = `http://${backendUrl}`;
         }
         const isHttps = backendUrl.startsWith("https://");
-        console.log(`[HOST LOG] Attempting connection. Target URL: ${backendUrl}, Port: ${isHttps ? "default/443" : "3001"}`);
+        console.log(`[HOST LOG] Connecting to ${backendUrl}`);
 
         import("@geckos.io/client")
             .then((module) => {
@@ -25,32 +31,41 @@ export default function Host() {
 
                 channel.onConnect((error: any) => {
                     if (error) {
-                        console.error("[HOST LOG] Connection error object:", error);
+                        console.error("[HOST LOG] Connection error:", error);
                         return;
                     }
-                    console.log(`[HOST LOG] Connected to server successfully! Channel ID: ${channel.id}`);
+                    console.log(`[HOST LOG] Connected! ID: ${channel.id}`);
 
+                    // Full world state (players)
                     channel.on("state", (state: any) => {
-                        console.log(`[HOST LOG] Received state: ${state.players?.length || 0} players active.`);
                         playersRef.current = state.players || [];
-                        attacksRef.current = state.attacks || [];
+                    });
+
+                    // Attack visual effects
+                    channel.on("attack_fx", (fx: any) => {
+                        fxRef.current.push({ ...fx, t: 0 });
                     });
                 });
             })
             .catch((err) => {
-                console.error("[HOST LOG] Failed to dynamically load geckos client library:", err);
+                console.error("[HOST LOG] Failed to load geckos client:", err);
             });
 
         return () => {
-            if (channel) {
-                channel.close();
-            }
+            if (channel) channel.close();
         };
     }, []);
 
+    // ── Render loop ───────────────────────────────────────────────────────────
     useEffect(() => {
         const canvas = canvasRef.current!;
         const ctx = canvas.getContext("2d")!;
+
+        // Preload sprite images
+        const catImg = new Image();
+        catImg.src = "/assets/sprites/cat-removebg-preview.png";
+        const sharkImg = new Image();
+        sharkImg.src = "/assets/sprites/shark-removebg-preview.png";
 
         function resize() {
             canvas.width = window.innerWidth;
@@ -60,51 +75,97 @@ export default function Host() {
         resize();
         window.addEventListener("resize", resize);
 
-        function loop() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        let last = performance.now();
 
-            ctx.fillStyle = "#0f0f1b";
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        function updateFX(dt: number) {
+            for (const fx of fxRef.current) {
+                fx.t += dt;
+            }
+            fxRef.current = fxRef.current.filter((fx) => fx.t < FX_MAX_TIME);
+        }
+
+        function drawPlayers() {
+            const SPRITE_SIZE = 60;
 
             for (const p of playersRef.current) {
-                const px = p.x * 0.1;
-                const py = p.y * 0.1;
+                if (!p.alive) continue;
 
-                // Draw player circle
-                ctx.fillStyle = "#6366f1";
-                ctx.beginPath();
-                ctx.arc(px, py, 12, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.lineWidth = 2;
-                ctx.strokeStyle = "#ffffff";
-                ctx.stroke();
+                const px = p.x * WORLD_SCALE;
+                const py = p.y * WORLD_SCALE;
 
-                // Draw player name above the circle
+                // Draw sprite (cat or shark)
+                const img = p.shark ? sharkImg : catImg;
+                ctx.drawImage(img, px - SPRITE_SIZE / 2, py - SPRITE_SIZE / 2, SPRITE_SIZE, SPRITE_SIZE);
+
+                // Shield indicator
+                if (p.shield) {
+                    ctx.strokeStyle = "rgba(0, 188, 212, 0.8)";
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.arc(px, py, SPRITE_SIZE / 2 + 6, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+
+                // Player name
                 ctx.fillStyle = "#ffffff";
                 ctx.font = "bold 14px system-ui, sans-serif";
                 ctx.textAlign = "center";
-                ctx.fillText(p.name || "Anonymous", px, py - 20);
+                ctx.fillText(p.name || "Anonymous", px, py - SPRITE_SIZE / 2 - 6);
             }
+        }
 
-            for (const a of attacksRef.current) {
-                ctx.strokeStyle = "#ef4444";
-                ctx.lineWidth = 3;
+        function drawAttackFX() {
+            for (const fx of fxRef.current) {
+                const progress = fx.t / FX_MAX_TIME;
+                const alpha = 1 - progress;
+
+                const x = fx.x * WORLD_SCALE;
+                const y = fx.y * WORLD_SCALE;
+
+                ctx.fillStyle = `rgba(255, 80, 80, ${alpha * 0.35})`;
                 ctx.beginPath();
-                ctx.moveTo(a.x, a.y);
-                ctx.lineTo(
-                    a.x + Math.cos(a.angle) * 200,
-                    a.y + Math.sin(a.angle) * 200
-                );
-                ctx.stroke();
+                ctx.moveTo(x, y);
+
+                for (let i = 0; i <= 12; i++) {
+                    const a = fx.angle - ATTACK_ANGLE / 2 + (ATTACK_ANGLE * i) / 12;
+                    ctx.lineTo(
+                        x + Math.cos(a) * ATTACK_RANGE_SCREEN,
+                        y + Math.sin(a) * ATTACK_RANGE_SCREEN
+                    );
+                }
+
+                ctx.closePath();
+                ctx.fill();
             }
+        }
+
+        function loop(now: number) {
+            const dt = (now - last) / 1000;
+            last = now;
+
+            updateFX(dt);
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Background
+            ctx.fillStyle = "#0f0f1b";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            drawAttackFX();
+            drawPlayers();
 
             requestAnimationFrame(loop);
         }
 
-        loop();
+        requestAnimationFrame(loop);
 
         return () => window.removeEventListener("resize", resize);
     }, []);
 
-    return <canvas ref={canvasRef} style={{ width: "100vw", height: "100vh", display: "block" }} />;
+    return (
+        <canvas
+            ref={canvasRef}
+            style={{ width: "100vw", height: "100vh", display: "block" }}
+        />
+    );
 }

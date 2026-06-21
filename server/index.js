@@ -13,160 +13,184 @@ const io = geckos({
   iceServers: [
     { urls: "stun:stun.l.google.com:19302" },
     { urls: "stun:stun1.l.google.com:19302" },
-    { urls: "stun:stun2.l.google.com:19302" }
+    { urls: "stun:stun2.l.google.com:19302" },
   ],
   portRange: {
     min: 10000,
-    max: 10100
-  }
+    max: 10100,
+  },
 });
 io.addServer(server);
 
-// Friendly root page route
+// Friendly root route
 app.get("/", (req, res) => {
   res.send("Game server is running successfully!");
 });
 
-const TICK_RATE = 60;
-const ATTACK_RADIUS = 120;
+// ─── Constants ────────────────────────────────────────────────────────────────
 
-// -------------------- WORLD STATE --------------------
+const TICK_RATE = 60;
+const SPEED = 3000;           // units per second
+const ATTACK_RANGE = 4000;    // units
+const ATTACK_ANGLE = Math.PI / 6;
+const RESPAWN_TIME = 3;       // seconds
+const WORLD_W = 20000;
+const WORLD_H = 10000;
+
+// ─── World state ──────────────────────────────────────────────────────────────
 
 const WORLD = {
   players: new Map(),
-  attacks: new Map(),
 };
 
 function createPlayer(id, name) {
   return {
     id,
     name,
-    x: 1500,
-    y: 1500,
+    x: WORLD_W / 2,
+    y: WORLD_H / 2,
     dx: 0,
     dy: 0,
+    angle: 0,
+    shark: Math.random() < 0.5,   // randomly assigned team
     shield: false,
-    shark: false,
+    attackRequested: false,
     alive: true,
+    respawnTimer: 0,
   };
 }
 
-// -------------------- CONNECTIONS --------------------
+function angleDiff(a, b) {
+  let d = a - b;
+  while (d > Math.PI) d -= 2 * Math.PI;
+  while (d < -Math.PI) d += 2 * Math.PI;
+  return Math.abs(d);
+}
+
+// ─── Connections ──────────────────────────────────────────────────────────────
 
 io.onConnection((channel) => {
-  console.log(`[SERVER LOG] New channel connection initiated. ID: ${channel.id}`);
+  console.log(`[SERVER LOG] New connection. ID: ${channel.id}`);
 
-  // We add to WORLD players map only when the controller completes name entry and joins
+  // Player joins after entering their name on the controller
   channel.on("join", (data) => {
     const name = data?.name || "Anonymous";
-    console.log(`[SERVER LOG] Join event received from ID: ${channel.id} with name: "${name}"`);
+    console.log(`[SERVER LOG] Join: ${channel.id} as "${name}"`);
     WORLD.players.set(channel.id, createPlayer(channel.id, name));
-    console.log(`[SERVER LOG] Active Players count: ${WORLD.players.size}`);
+    console.log(`[SERVER LOG] Active players: ${WORLD.players.size}`);
   });
 
-  // movement input
+  // Movement input — also updates facing angle
   channel.on("input", (data) => {
-    const p = WORLD.players.get(channel.id);
-    if (!p) {
-      console.log(`[SERVER LOG] Input received from ID: ${channel.id} but player is not in active players list.`);
-      return;
-    }
-    p.dx = data.dx;
-    p.dy = data.dy;
-  });
-
-  channel.on("attack", (data) => {
     const p = WORLD.players.get(channel.id);
     if (!p) return;
 
-    const attack = {
-      id: crypto.randomUUID?.() ?? Math.random().toString(36).slice(2),
-      attackerId: channel.id,
-      x: p.x,
-      y: p.y,
-      angle: data.angle, // radians
-      timestamp: Date.now(),
-    };
+    p.dx = data.dx ?? 0;
+    p.dy = data.dy ?? 0;
 
-    WORLD.attacks.set(attack.id, attack);
-    console.log(`[SERVER LOG] Attack registered from player: ${p.name}`);
-
-    // broadcast instantly
-    io.emit("attack", attack);
+    const len = Math.hypot(p.dx, p.dy);
+    if (len > 0.01) {
+      p.angle = Math.atan2(p.dy, p.dx);
+    }
   });
 
+  // Attack — flagged and resolved on next tick for deterministic hit detection
+  channel.on("attack", () => {
+    const p = WORLD.players.get(channel.id);
+    if (!p || !p.alive) return;
+    p.attackRequested = true;
+  });
+
+  // Shield toggle
   channel.on("shield", (data) => {
     const p = WORLD.players.get(channel.id);
     if (!p) return;
-
-    p.shield = !!data.shield;
+    p.shield = !!data?.shield;
   });
 
   channel.onDisconnect(() => {
-    console.log(`[SERVER LOG] Channel disconnected. ID: ${channel.id}`);
+    console.log(`[SERVER LOG] Disconnected. ID: ${channel.id}`);
     WORLD.players.delete(channel.id);
-    console.log(`[SERVER LOG] Active Players count: ${WORLD.players.size}`);
+    console.log(`[SERVER LOG] Active players: ${WORLD.players.size}`);
   });
 });
 
-// -------------------- GAME LOOP --------------------
+// ─── Game loop ────────────────────────────────────────────────────────────────
 
 setInterval(() => {
   const dt = 1 / TICK_RATE;
-  const SPEED = 3000;
 
-  // update players
+  // ── Movement & respawn ───────────────────────────────────────────────────
   for (const p of WORLD.players.values()) {
-    const len = Math.hypot(p.dx, p.dy) || 1;
+    if (!p.alive) {
+      p.respawnTimer -= dt;
+      if (p.respawnTimer <= 0) {
+        p.alive = true;
+        // Respawn near center with small random offset
+        p.x = WORLD_W / 2 + (Math.random() - 0.5) * 2000;
+        p.y = WORLD_H / 2 + (Math.random() - 0.5) * 2000;
+        p.dx = 0;
+        p.dy = 0;
+      }
+      continue;
+    }
 
-    const nx = p.dx / len;
-    const ny = p.dy / len;
+    const len = Math.hypot(p.dx, p.dy);
+    if (len > 0.01) {
+      const nx = p.dx / len;
+      const ny = p.dy / len;
+      p.x += nx * SPEED * dt;
+      p.y += ny * SPEED * dt;
 
-    p.x += nx * SPEED * dt;
-    p.y += ny * SPEED * dt;
+      // World bounds clamping
+      p.x = Math.max(0, Math.min(WORLD_W, p.x));
+      p.y = Math.max(0, Math.min(WORLD_H, p.y));
+    }
   }
 
-  for (const atk of WORLD.attacks.values()) {
-    for (const p of WORLD.players.values()) {
-      if (!p.alive) continue;
-      if (p.id === atk.attackerId) continue;
+  // ── Combat ───────────────────────────────────────────────────────────────
+  for (const attacker of WORLD.players.values()) {
+    if (!attacker.attackRequested || !attacker.alive) continue;
 
-      const dx = p.x - atk.x;
-      const dy = p.y - atk.y;
+    attacker.attackRequested = false;
+
+    // Broadcast attack FX to all clients (world-space coordinates)
+    io.emit("attack_fx", {
+      x: attacker.x,
+      y: attacker.y,
+      angle: attacker.angle,
+    });
+
+    for (const victim of WORLD.players.values()) {
+      if (victim === attacker) continue;
+      if (!victim.alive) continue;
+      if (victim.shield) continue;
+      if (attacker.shark === victim.shark) continue; // friendly fire disabled
+
+      const dx = victim.x - attacker.x;
+      const dy = victim.y - attacker.y;
       const dist = Math.hypot(dx, dy);
 
-      if (dist < ATTACK_RADIUS) {
-        if (!p.shield) {
-          // 👇 placeholder "kill"
-          p.alive = false;
-        }
+      if (dist > ATTACK_RANGE) continue;
+
+      const targetAngle = Math.atan2(dy, dx);
+      if (angleDiff(attacker.angle, targetAngle) <= ATTACK_ANGLE / 2) {
+        victim.alive = false;
+        victim.respawnTimer = RESPAWN_TIME;
+        console.log(`[SERVER LOG] ${attacker.name} eliminated ${victim.name}!`);
       }
     }
   }
 
-  for (const p of WORLD.players.values()) {
-    if (!p.alive) continue;
-
-    // cleanup old attacks (optional but IMPORTANT)
-    const now = Date.now();
-    for (const [id, atk] of WORLD.attacks) {
-      if (now - atk.timestamp > 1000) {
-        WORLD.attacks.delete(id);
-      }
-    }
-  }
-
-  // broadcast world state to all connected channels
+  // ── Broadcast world state ─────────────────────────────────────────────────
   io.emit("state", {
     players: Array.from(WORLD.players.values()),
-    attacks: Array.from(WORLD.attacks.values()),
   });
 }, 1000 / TICK_RATE);
 
-// -------------------- START --------------------
+// ─── Start ────────────────────────────────────────────────────────────────────
 
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
-  console.log(`server running on :${PORT}`);
+  console.log(`[SERVER LOG] Server running on :${PORT}`);
 });
-

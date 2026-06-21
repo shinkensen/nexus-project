@@ -2,23 +2,135 @@
 
 import { useState, useEffect, useRef } from "react";
 
+// ─── Joystick helpers ────────────────────────────────────────────────────────
+
+function clampJoystick(dx: number, dy: number, max: number) {
+    const dist = Math.hypot(dx, dy);
+    if (dist <= max) return { dx, dy };
+    const scale = max / dist;
+    return { dx: dx * scale, dy: dy * scale };
+}
+
+// ─── Action Buttons (Shield + Attack) ────────────────────────────────────────
+
+function ActionButtons({ channelRef }: { channelRef: React.MutableRefObject<any> }) {
+    const [shieldActive, setShieldActive] = useState(false);
+    const [attackCooldown, setAttackCooldown] = useState(false);
+
+    const SHIELD_DURATION = 3000;
+    const ATTACK_COOLDOWN_TIME = 300;
+
+    const handleShield = () => {
+        if (shieldActive || !channelRef.current) return;
+        channelRef.current.emit("shield", { shield: true });
+        setShieldActive(true);
+        setTimeout(() => {
+            channelRef.current?.emit("shield", { shield: false });
+            setShieldActive(false);
+        }, SHIELD_DURATION);
+    };
+
+    const handleAttack = () => {
+        if (attackCooldown || !channelRef.current) return;
+        channelRef.current.emit("attack");
+        setAttackCooldown(true);
+        setTimeout(() => setAttackCooldown(false), ATTACK_COOLDOWN_TIME);
+    };
+
+    return (
+        <div
+            style={{
+                position: "absolute",
+                bottom: 220,
+                left: 60,
+                display: "flex",
+                flexDirection: "column",
+                gap: "10px",
+                width: "140px",
+                zIndex: 10,
+            }}
+        >
+            <button
+                onClick={handleShield}
+                disabled={shieldActive}
+                style={{
+                    padding: "12px",
+                    borderRadius: "8px",
+                    border: "none",
+                    background: shieldActive ? "#333" : "#00bcd4",
+                    color: shieldActive ? "#888" : "#fff",
+                    fontWeight: "bold",
+                    cursor: shieldActive ? "not-allowed" : "pointer",
+                    opacity: shieldActive ? 0.6 : 1,
+                    fontSize: "14px",
+                }}
+            >
+                {shieldActive ? "SHIELD ACTIVE" : "SHIELD"}
+            </button>
+
+            <button
+                onClick={handleAttack}
+                disabled={attackCooldown}
+                style={{
+                    padding: "12px",
+                    borderRadius: "8px",
+                    border: "none",
+                    background: attackCooldown ? "#333" : "#f44336",
+                    color: attackCooldown ? "#666" : "#fff",
+                    fontWeight: "bold",
+                    cursor: attackCooldown ? "not-allowed" : "pointer",
+                    opacity: attackCooldown ? 0.6 : 1,
+                    fontSize: "14px",
+                }}
+            >
+                {attackCooldown ? "ATTACK [CD]" : "ATTACK"}
+            </button>
+        </div>
+    );
+}
+
+// ─── Main Controller ──────────────────────────────────────────────────────────
+
 export default function Controller() {
     const [name, setName] = useState("");
     const [joined, setJoined] = useState(false);
     const [statusMsg, setStatusMsg] = useState("");
     const channelRef = useRef<any>(null);
 
+    // Joystick state
+    const [knob, setKnob] = useState({ x: 0, y: 0 });
+    const joystickRef = useRef({
+        active: false,
+        pointerId: -1,
+        originX: 0,
+        originY: 0,
+        angleRef: 0,
+    });
+    const sendRef = useRef({ dx: 0, dy: 0 });
+    // Track current facing angle for attack direction
+    const angleRef = useRef(0);
+
+    // ── Streaming input interval ──────────────────────────────────────────────
+    useEffect(() => {
+        if (!joined) return;
+
+        const interval = setInterval(() => {
+            channelRef.current?.emit("input", sendRef.current);
+        }, 50); // 20 updates/sec
+
+        return () => clearInterval(interval);
+    }, [joined]);
+
+    // ── Connect via geckos.io ─────────────────────────────────────────────────
     function connectAndJoin(playerName: string) {
         let backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://165.22.144.193";
-        // Ensure the URL is absolute by prepending http:// if protocol is missing
         if (backendUrl && !backendUrl.startsWith("http://") && !backendUrl.startsWith("https://")) {
             backendUrl = `http://${backendUrl}`;
         }
         const isHttps = backendUrl.startsWith("https://");
-        console.log(`[CLIENT LOG] Attempting connection. Target URL: ${backendUrl}, Port: ${isHttps ? "default/443" : "3001"}`);
+        console.log(`[CLIENT LOG] Connecting to ${backendUrl}`);
         setStatusMsg(`Connecting to ${backendUrl}...`);
-        
-        // Dynamic import to prevent any SSR issues with WebRTC objects in Next.js build
+
         import("@geckos.io/client")
             .then((module) => {
                 const geckos = module.default;
@@ -26,26 +138,24 @@ export default function Controller() {
 
                 channel.onConnect((error) => {
                     if (error) {
-                        console.error("[CLIENT LOG] Connection error object:", error);
-                        setStatusMsg(`Connection error: ${error.message}. Check browser console.`);
+                        console.error("[CLIENT LOG] Connection error:", error);
+                        setStatusMsg(`Connection error: ${error.message}`);
                         return;
                     }
-
-                    console.log(`[CLIENT LOG] Connected to server! Channel ID: ${channel.id}`);
-                    console.log(`[CLIENT LOG] Emitting 'join' with name: "${playerName}"`);
+                    console.log(`[CLIENT LOG] Connected! ID: ${channel.id}`);
                     channel.emit("join", { name: playerName });
                     channelRef.current = channel;
                     setJoined(true);
                 });
 
                 channel.onDisconnect(() => {
-                    console.warn("[CLIENT LOG] Disconnected from server.");
+                    console.warn("[CLIENT LOG] Disconnected.");
                     setJoined(false);
                     setStatusMsg("Disconnected from server");
                 });
             })
             .catch((err) => {
-                console.error("[CLIENT LOG] Failed to dynamically load geckos client library:", err);
+                console.error("[CLIENT LOG] Failed to load geckos client:", err);
                 setStatusMsg("Failed to initialize game client package");
             });
     }
@@ -57,17 +167,45 @@ export default function Controller() {
         connectAndJoin(trimmedName);
     }
 
-    function send(dx: number, dy: number) {
-        channelRef.current?.emit("input", { dx, dy });
+    // ── Joystick pointer handlers ─────────────────────────────────────────────
+
+    function onPointerDown(e: React.PointerEvent) {
+        if ((e.target as HTMLElement).closest("button")) return;
+        joystickRef.current.active = true;
+        joystickRef.current.pointerId = e.pointerId;
+        joystickRef.current.originX = e.clientX;
+        joystickRef.current.originY = e.clientY;
     }
 
-    function handlePointerMove(e: React.PointerEvent) {
-        if (!joined) return;
-        const dx = (e.clientX / window.innerWidth - 0.5) * 2;
-        const dy = (e.clientY / window.innerHeight - 0.5) * 2;
+    function onPointerMove(e: React.PointerEvent) {
+        if (!joystickRef.current.active || e.pointerId !== joystickRef.current.pointerId) return;
 
-        send(dx, dy);
+        const rawDx = e.clientX - joystickRef.current.originX;
+        const rawDy = e.clientY - joystickRef.current.originY;
+        const MAX = 80;
+        const clamped = clampJoystick(rawDx, rawDy, MAX);
+
+        setKnob({ x: clamped.dx, y: clamped.dy });
+
+        sendRef.current.dx = clamped.dx / MAX;
+        sendRef.current.dy = clamped.dy / MAX;
+
+        // Track angle for attack direction
+        const len = Math.hypot(clamped.dx, clamped.dy);
+        if (len > 0.01) {
+            angleRef.current = Math.atan2(clamped.dy, clamped.dx);
+        }
     }
+
+    function onPointerUp(e: React.PointerEvent) {
+        if (e.pointerId !== joystickRef.current.pointerId) return;
+        joystickRef.current.active = false;
+        setKnob({ x: 0, y: 0 });
+        sendRef.current.dx = 0;
+        sendRef.current.dy = 0;
+    }
+
+    // ── Join screen ───────────────────────────────────────────────────────────
 
     if (!joined) {
         return (
@@ -121,7 +259,6 @@ export default function Controller() {
                             marginBottom: "16px",
                             outline: "none",
                             boxSizing: "border-box",
-                            transition: "border-color 0.3s ease",
                         }}
                     />
 
@@ -152,28 +289,71 @@ export default function Controller() {
         );
     }
 
+    // ── In-game controller screen ─────────────────────────────────────────────
+
     return (
         <div
-            onPointerMove={handlePointerMove}
+            onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerUp}
+            onPointerCancel={onPointerUp}
             style={{
                 height: "100vh",
                 background: "radial-gradient(circle at center, #111 0%, #000 100%)",
                 touchAction: "none",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                fontFamily: "system-ui, sans-serif",
+                position: "relative",
+                overflow: "hidden",
                 userSelect: "none",
+                fontFamily: "system-ui, sans-serif",
             }}
         >
-            <div style={{ pointerEvents: "none", textAlign: "center" }}>
-                <p style={{ color: "#6366f1", fontSize: "24px", fontWeight: "bold", margin: 0 }}>
+            {/* Status label */}
+            <div style={{ pointerEvents: "none", textAlign: "center", paddingTop: "20px" }}>
+                <p style={{ color: "#6366f1", fontSize: "20px", fontWeight: "bold", margin: 0 }}>
                     Connected as {name}
                 </p>
-                <p style={{ color: "#888", fontSize: "14px", marginTop: "8px" }}>
-                    Drag finger or mouse to control your player
+                <p style={{ color: "#888", fontSize: "13px", marginTop: "6px" }}>
+                    Drag joystick to move • Use buttons to fight
                 </p>
+            </div>
+
+            {/* Shield + Attack buttons */}
+            <ActionButtons channelRef={channelRef} />
+
+            {/* Joystick */}
+            <div
+                style={{
+                    position: "absolute",
+                    bottom: 60,
+                    left: 60,
+                    width: 140,
+                    height: 140,
+                }}
+            >
+                {/* Base ring */}
+                <div
+                    style={{
+                        position: "absolute",
+                        inset: 0,
+                        borderRadius: "50%",
+                        background: "rgba(255,255,255,0.08)",
+                        border: "2px solid rgba(255,255,255,0.2)",
+                    }}
+                />
+                {/* Knob */}
+                <div
+                    style={{
+                        position: "absolute",
+                        left: 70 + knob.x,
+                        top: 70 + knob.y,
+                        width: 60,
+                        height: 60,
+                        borderRadius: "50%",
+                        background: "white",
+                        transform: "translate(-50%, -50%)",
+                        transition: joystickRef.current.active ? "none" : "left 0.15s, top 0.15s",
+                    }}
+                />
             </div>
         </div>
     );
