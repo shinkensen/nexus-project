@@ -120,15 +120,15 @@ export default function Host() {
 
             for (const p of playersRef.current) {
                 let img = p.shark ? sharkImg : catImg;
-                if (!p.alive){
+                if (!p.alive) {
 
                     img = fireIMG;
 
                 }
-                else{
+                else {
                     const px = p.x * WORLD_SCALE;
                     const py = p.y * WORLD_SCALE;
-    
+
                     console.log(`[HOST LOG] Drawing player ${p.name} at (${p.x.toFixed(1)}, ${p.y.toFixed(1)}) with gold: ${p.gold}`);
 
                     // Highlight the team's top-gold player with the MVP sprite
@@ -136,19 +136,19 @@ export default function Host() {
                     if (isGoldLeader) {
                         img = p.shark ? mvpSharkImg : mvpCatImg;
                     }
-    
+
                     if (p.shield) {
                         img = shieldImg;
                     }
-    
+
                     ctx.drawImage(img, px - SPRITE_SIZE / 2, py - SPRITE_SIZE / 2, SPRITE_SIZE, SPRITE_SIZE);
-    
+
                     // Player name
                     ctx.fillStyle = "#ffffff";
                     ctx.font = "bold 14px system-ui, sans-serif";
                     ctx.textAlign = "center";
                     ctx.fillText(p.name || "Anonymous", px, py - SPRITE_SIZE / 2 - 6);
-    
+
                     if (p.gold > 0) {
                         ctx.fillStyle = "#ffd700";
                         ctx.font = "bold 12px system-ui, sans-serif";
@@ -156,12 +156,15 @@ export default function Host() {
                         ctx.fillText(`Gold: ${p.gold}`, px, py + SPRITE_SIZE / 2 + 16);
                     }
                 }
-                
+
 
             }
         }
 
         function drawAttackFX() {
+            const RECT_LENGTH = 4000 * WORLD_SCALE;
+            const RECT_WIDTH = 1200 * WORLD_SCALE;
+
             for (const fx of fxRef.current) {
                 const progress = fx.t / FX_MAX_TIME;
                 const alpha = 1 - progress;
@@ -169,20 +172,24 @@ export default function Host() {
                 const x = fx.x * WORLD_SCALE;
                 const y = fx.y * WORLD_SCALE;
 
+                ctx.save();
+
+                // Move to attack origin
+                ctx.translate(x, y);
+
+                // Rotate so +X points in the attack direction
+                ctx.rotate(fx.angle);
+
+                // Draw rectangle extending forward from the player
                 ctx.fillStyle = `rgba(255, 80, 80, ${alpha * 0.35})`;
-                ctx.beginPath();
-                ctx.moveTo(x, y);
+                ctx.fillRect(
+                    45,                  // offset from player
+                    -RECT_WIDTH / 2,
+                    RECT_LENGTH,
+                    RECT_WIDTH
+                );
 
-                for (let i = 0; i <= 12; i++) {
-                    const a = fx.angle - ATTACK_ANGLE / 2 + (ATTACK_ANGLE * i) / 12;
-                    ctx.lineTo(
-                        x + Math.cos(a) * ATTACK_RANGE_SCREEN,
-                        y + Math.sin(a) * ATTACK_RANGE_SCREEN
-                    );
-                }
-
-                ctx.closePath();
-                ctx.fill();
+                ctx.restore();
             }
         }
 

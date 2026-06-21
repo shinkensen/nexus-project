@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useDeviceMotion } from "../hooks/useDeviceMotion";
+import backgroundImage from "@/public/assets/ui/loading_screen.png";
 
 
 function clampJoystick(dx: number, dy: number, max: number) {
@@ -13,6 +14,27 @@ function clampJoystick(dx: number, dy: number, max: number) {
 
 // phone controls
 
+// mobile background / layout toggle
+const MOBILE_BREAKPOINT = 900;
+
+// Name Input Field Coordinates
+const NAME_INPUT_X = 20;
+const NAME_INPUT_Y = 487;
+const NAME_INPUT_WIDTH = 200;
+const NAME_INPUT_HEIGHT = 46;
+
+// Join Button Coordinates
+const JOIN_BUTTON_X = 240;
+const JOIN_BUTTON_Y = 460;
+const JOIN_BUTTON_WIDTH = 150;
+const JOIN_BUTTON_HEIGHT = 110;
+
+// Status Text Coordinates
+const STATUS_X = 60;
+const STATUS_Y = 485;
+const STATUS_WIDTH = 260;
+
+// Phone Game Settings
 const SHIELD_BETA_THRESHOLD = 60;
 const SHIELD_DURATION = 1500;
 const SHIELD_COOLDOWN_TIME = 2500;
@@ -123,6 +145,7 @@ export default function Controller() {
     const [shieldCooldown, setShieldCooldown] = useState(false);
     const [attackCooldown, setAttackCooldown] = useState(false);
     const channelRef = useRef<any>(null);
+    const [isMobile, setIsMobile] = useState(false);
     const shieldActiveRef = useRef(false);
 
     const [motionAvailable, setMotionAvailable] = useState<boolean | null>(null);
@@ -137,7 +160,16 @@ export default function Controller() {
     });
 
     const { orientation, motion, permissionNeeded, requestPermission } = useDeviceMotion();
+    useEffect(() => {
+        const updateIsMobile = () => {
+            if (typeof window === "undefined") return;
+            setIsMobile(window.innerWidth <= MOBILE_BREAKPOINT);
+        };
 
+        updateIsMobile();
+        window.addEventListener("resize", updateIsMobile);
+        return () => window.removeEventListener("resize", updateIsMobile);
+    }, []);
     useEffect(() => {
         if (permissionNeeded) {
             requestPermission()
@@ -398,10 +430,12 @@ export default function Controller() {
             <div
                 style={{
                     height: "100vh",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    background: "radial-gradient(circle at center, #1a1a2e 0%, #0f0f1b 100%)",
+                    overflow: "hidden",
+                    backgroundColor: "#20b14c",
+                    backgroundImage: isMobile ? `url(${backgroundImage.src})` : "none",
+                    backgroundSize: isMobile ? "contain" : "auto",
+                    backgroundPosition: "center center",
+                    backgroundRepeat: "no-repeat",
                     fontFamily: "system-ui, -apple-system, sans-serif",
                     color: "#fff",
                 }}
@@ -435,16 +469,20 @@ export default function Controller() {
                         maxLength={15}
                         required
                         style={{
-                            width: "100%",
-                            padding: "12px 16px",
-                            borderRadius: "8px",
-                            border: "1px solid rgba(255, 255, 255, 0.2)",
-                            background: "rgba(0, 0, 0, 0.3)",
-                            color: "#fff",
+                            position: "absolute",
+                            left: NAME_INPUT_X,
+                            top: NAME_INPUT_Y,
+                            width: NAME_INPUT_WIDTH,
+                            height: NAME_INPUT_HEIGHT,
+                            padding: "0 14px",
+                            boxSizing: "border-box",
+                            borderRadius: "10px",
+                            border: "2px solid rgb(201, 190, 231)",
+                            outline: "none",
+                            background: "rgb(201, 190, 231)",
+                            color: "#111",
                             fontSize: "16px",
                             marginBottom: "16px",
-                            outline: "none",
-                            boxSizing: "border-box",
                         }}
                     />
 
@@ -453,13 +491,15 @@ export default function Controller() {
                         style={{
                             width: "100%",
                             padding: "12px",
-                            borderRadius: "8px",
                             border: "none",
-                            background: "linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)",
-                            color: "#fff",
-                            fontSize: "16px",
-                            fontWeight: 600,
+                            borderRadius: "10px",
+                            paddingTop: "10px",
+                            paddingBottom:"10px",
                             cursor: "pointer",
+                            fontSize: "16px",
+                            fontWeight: 700,
+                            color: "rgb(164, 73, 163,0)",
+                            background: "rgb(164, 73, 163,0)",
                         }}
                     >
                         Join Game

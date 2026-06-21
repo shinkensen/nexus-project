@@ -31,8 +31,8 @@ app.get("/", (req, res) => {
 
 const TICK_RATE = 60;
 const SPEED = 3000;
-const ATTACK_RANGE = 400000;
-const ATTACK_ANGLE = Math.PI / 6;
+const ATTACK_LENGTH = 4000; // forward distance
+const ATTACK_WIDTH = 1200;  // total width
 const RESPAWN_TIME = 3;
 const WORLD_W = 17000;
 const WORLD_H = 8000;
@@ -171,10 +171,10 @@ setInterval(() => {
       p.y = Math.max(0, Math.min(WORLD_H, p.y));
     }
 
-    if (!p.shark && p.x < 2500) {
+    if (!p.shark && p.x < 2500 && WORLD.teams.shark.gold > 0) {
       p.gold += 1;
       WORLD.teams.shark.gold -= 1;
-    } else if (p.shark && p.x > 13000) {
+    } else if (p.shark && p.x > 13000 && WORLD.teams.cat.gold > 0) {
       p.gold += 1;
       WORLD.teams.cat.gold -= 1;
     }
@@ -207,16 +207,30 @@ setInterval(() => {
 
       const dx = victim.x - attacker.x;
       const dy = victim.y - attacker.y;
-      const dist = Math.hypot(dx, dy);
 
-      if (dist > ATTACK_RANGE) continue;
+      // Transform victim into attacker's local coordinate system.
+      // forward = distance in front of attacker
+      // side = distance left/right of attacker
+      const forward =
+        dx * Math.cos(attacker.angle) +
+        dy * Math.sin(attacker.angle);
 
-      const targetAngle = Math.atan2(dy, dx);
-      if (angleDiff(attacker.angle, targetAngle) <= ATTACK_ANGLE / 2) {
+      const side =
+        -dx * Math.sin(attacker.angle) +
+        dy * Math.cos(attacker.angle);
+
+      // Rectangle test
+      if (
+        forward >= 0 &&
+        forward <= ATTACK_LENGTH &&
+        Math.abs(side) <= ATTACK_WIDTH / 2
+      ) {
         victim.alive = false;
         victim.respawnTimer = RESPAWN_TIME;
+
         attacker.gold += victim.gold;
         victim.gold = 0;
+
         console.log(`[SERVER LOG] ${attacker.name} eliminated ${victim.name}!`);
       }
     }
