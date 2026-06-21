@@ -178,7 +178,6 @@ export default function Game({
         players[p.id] = { x: p.x, y: p.y, dx: p.dx, dy: p.dy, lastUpdate: now };
       }
 
-      // Drop anyone the server no longer reports (disconnected players).
       for (const id of Object.keys(players)) {
         if (!liveIds.has(id)) delete players[id];
       }
@@ -192,8 +191,6 @@ export default function Game({
       keys[e.key.toLowerCase()] = false;
     }
 
-    // Drive the on-screen joystick (base + knob) directly via refs instead of
-    // React state, so dragging stays smooth and doesn't trigger re-renders.
     function showJoystick(x: number, y: number) {
       const base = joystickBaseRef.current;
       const knob = joystickKnobRef.current;
@@ -454,6 +451,8 @@ export default function Game({
         dy /= len;
       }
 
+      // Send our input to the server at a throttled rate (the server owns
+      // position integration in its own tick loop, mirrors Controller.tsx).
       if (now - lastBroadcast >= BROADCAST_INTERVAL_MS) {
         socket.emit("input", { dx, dy });
         lastBroadcast = now;
@@ -474,6 +473,9 @@ export default function Game({
 
     requestAnimationFrame(loop);
 
+    // Periodically push a snapshot of the live sensor/game values into
+    // React state so the debug overlay can render them without forcing
+    // a re-render on every animation frame.
     const debugInterval = setInterval(() => {
       setDebugData({
         orientation: debugRef.current.orientation ?? null,
@@ -527,6 +529,112 @@ export default function Game({
           touchAction: "none",
           WebkitTouchCallout: "none",
           WebkitTapHighlightColor: "transparent",
+        }}
+      />
+
+      <div
+        ref={joystickBaseRef}
+        style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          width: 140,
+          height: 140,
+          borderRadius: "50%",
+          background: "rgba(255,255,255,0.08)",
+          border: "2px solid rgba(255,255,255,0.2)",
+          transform: "translate(-50%, -50%)",
+          pointerEvents: "none",
+          opacity: 0,
+          transition: "opacity 0.12s ease-out",
+          zIndex: 500,
+        }}
+      />
+      <div
+        ref={joystickKnobRef}
+        style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          width: 60,
+          height: 60,
+          borderRadius: "50%",
+          background: "white",
+          transform: "translate(-50%, -50%)",
+          pointerEvents: "none",
+          opacity: 0,
+          transition: "opacity 0.12s ease-out",
+          zIndex: 501,
+        }}
+      />
+
+      {/* HUD: username + gold */}
+      <div
+        style={{
+          position: "fixed",
+          top: 16,
+          left: 16,
+          zIndex: 900,
+          padding: "8px 14px",
+          background: "rgba(24, 24, 24, 0.75)",
+          border: "1px solid rgba(255,255,255,0.15)",
+          borderRadius: 8,
+          color: "#e2e8f0",
+          fontFamily: "'JetBrains Mono', 'Courier New', monospace",
+          fontSize: 13,
+        }}
+      >
+        <div style={{ fontWeight: 600 }}>{playerName || "Player"}</div>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            color: "#f6e05e",
+            marginTop: 2,
+          }}
+        >
+          <img
+            src="/assets/ui/coin-removebg-preview.png"
+            alt="Coin"
+            width={16}
+            height={16}
+            style={{ display: "block" }}
+          />
+          <span>0</span>
+        </div>
+      </div>
+
+      <img
+        src="/assets/ui/instruction_box-removebg-preview.png"
+        alt="Shield Instructions"
+        style={{
+          position: "fixed",
+          top: 16,
+          right: 16,
+          width: 120,
+          height: 120,
+          objectFit: "cover",
+          borderRadius: 8,
+          border: "2px dashed rgba(255,255,255,0.3)",
+          background: "rgba(255,255,255,0.05)",
+          zIndex: 900,
+        }}
+      />
+      <img
+        src="/assets/ui/instruction_attack-removebg-preview.png"
+        alt="Attack Instructinos"
+        style={{
+          position: "fixed",
+          top: 144,
+          right: 16,
+          width: 120,
+          height: 120,
+          objectFit: "cover",
+          borderRadius: 8,
+          border: "2px dashed rgba(255,255,255,0.3)",
+          background: "rgba(255,255,255,0.05)",
+          zIndex: 900,
         }}
       />
 
