@@ -155,53 +155,106 @@ io.onConnection((channel) => {
 
 setInterval(() => {
   const dt = 1 / TICK_RATE;
-  const SPEED = 3000;
 
-  // update players
   for (const p of WORLD.players.values()) {
-    const len = Math.hypot(p.dx, p.dy) || 1;
+    if (!p.alive) {
+      p.respawnTimer -= dt;
+      if (p.respawnTimer <= 0) {
+        p.alive = true;
 
-    const nx = p.dx / len;
-    const ny = p.dy / len;
-
-    p.x += nx * SPEED * dt;
-    p.y += ny * SPEED * dt;
-  }
-
-  for (const atk of WORLD.attacks.values()) {
-    for (const p of WORLD.players.values()) {
-      if (!p.alive) continue;
-      if (p.id === atk.attackerId) continue;
-
-      const dx = p.x - atk.x;
-      const dy = p.y - atk.y;
-      const dist = Math.hypot(dx, dy);
-
-      if (dist < ATTACK_RADIUS) {
-        if (!p.shield) {
-          // 👇 placeholder "kill"
-          p.alive = false;
+        if (p.shark) {
+          p.x = WORLD_W / 4 + (Math.random() - 0.5) * 2000;
+          p.y = WORLD_H / 4 + (Math.random() - 0.5) * 2000;
+        } else {
+          p.x = (WORLD_W * 3) / 4 + (Math.random() - 0.5) * 2000;
+          p.y = (WORLD_H * 3) / 4 + (Math.random() - 0.5) * 2000;
         }
+
+        p.dx = 0;
+        p.dy = 0;
+      }
+      continue;
+    }
+
+    const len = Math.hypot(p.dx, p.dy);
+    if (len > 0.01) {
+      const nx = p.dx / len;
+      const ny = p.dy / len;
+      p.x += nx * SPEED * dt;
+      p.y += ny * SPEED * dt;
+
+      p.x = Math.max(0, Math.min(WORLD_W, p.x));
+      p.y = Math.max(0, Math.min(WORLD_H, p.y));
+    }
+
+    if (!p.shark && p.x < 2500 && WORLD.teams.shark.gold > 0) {
+      p.gold += 1;
+      WORLD.teams.shark.gold -= 1;
+    } else if (p.shark && p.x > 13000 && WORLD.teams.cat.gold > 0) {
+      p.gold += 1;
+      WORLD.teams.cat.gold -= 1;
+    }
+
+    if (!p.shark && p.x > 13000) {
+      WORLD.teams.cat.gold += p.gold;
+      p.gold = 0;
+    } else if (p.shark && p.x < 2500) {
+      WORLD.teams.shark.gold += p.gold;
+      p.gold = 0;
+    }
+  }
+
+  for (const attacker of WORLD.players.values()) {
+    if (!attacker.attackRequested || !attacker.alive) continue;
+
+    attacker.attackRequested = false;
+
+    io.emit("attack_fx", {
+      x: attacker.x,
+      y: attacker.y,
+      angle: attacker.angle,
+    });
+
+    for (const victim of WORLD.players.values()) {
+      if (victim === attacker) continue;
+      if (!victim.alive) continue;
+      if (victim.shield) continue;
+      if (attacker.shark === victim.shark) continue;
+
+      const dx = victim.x - attacker.x;
+      const dy = victim.y - attacker.y;
+
+      // Transform victim into attacker's local coordinate system.
+      // forward = distance in front of attacker
+      // side = distance left/right of attacker
+      const forward =
+        dx * Math.cos(attacker.angle) +
+        dy * Math.sin(attacker.angle);
+
+      const side =
+        -dx * Math.sin(attacker.angle) +
+        dy * Math.cos(attacker.angle);
+
+      // Rectangle test
+      if (
+        forward >= 0 &&
+        forward <= ATTACK_LENGTH &&
+        Math.abs(side) <= ATTACK_WIDTH / 2
+      ) {
+        victim.alive = false;
+        victim.respawnTimer = RESPAWN_TIME;
+
+        attacker.gold += victim.gold;
+        victim.gold = 0;
+
+        console.log(`[SERVER LOG] ${attacker.name} eliminated ${victim.name}!`);
       }
     }
   }
 
-  for (const p of WORLD.players.values()) {
-    if (!p.alive) continue;
-
-    // cleanup old attacks (optional but IMPORTANT)
-    const now = Date.now();
-    for (const [id, atk] of WORLD.attacks) {
-      if (now - atk.timestamp > 1000) {
-        WORLD.attacks.delete(id);
-      }
-    }
-  }
-
-  // broadcast world state to all connected channels
   io.emit("state", {
     players: Array.from(WORLD.players.values()),
-    attacks: Array.from(WORLD.attacks.values()),
+    teams: WORLD.teams,
   });
 }, 1000 / TICK_RATE);
 
