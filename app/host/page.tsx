@@ -67,11 +67,14 @@ export default function Host() {
         const canvas = canvasRef.current!;
         const ctx = canvas.getContext("2d")!;
 
-        // Preload sprite images
         const catImg = new Image();
         catImg.src = "/assets/sprites/cat-removebg-preview.png";
         const sharkImg = new Image();
         sharkImg.src = "/assets/sprites/shark-removebg-preview.png";
+        const mvpCatImg = new Image();
+        mvpCatImg.src = "/assets/sprites/mvp_cat.png";
+        const mvpSharkImg = new Image();
+        mvpSharkImg.src = "/assets/sprites/mvp_shark.png";
         const shieldImg = new Image();
         shieldImg.src = "/assets/objects/box-removebg-preview.png";
         const fireIMG = new Image();
@@ -94,8 +97,26 @@ export default function Host() {
             fxRef.current = fxRef.current.filter((fx) => fx.t < FX_MAX_TIME);
         }
 
+        function getTeamGoldLeaders() {
+            let catLeader: any = null;
+            let sharkLeader: any = null;
+
+            for (const p of playersRef.current) {
+                if (!p.alive) continue;
+                if (p.shark) {
+                    if (!sharkLeader || p.gold > sharkLeader.gold) sharkLeader = p;
+                } else {
+                    if (!catLeader || p.gold > catLeader.gold) catLeader = p;
+                }
+            }
+
+            return { catLeader, sharkLeader };
+        }
+
         function drawPlayers() {
             const SPRITE_SIZE = 90;
+
+            const { catLeader, sharkLeader } = getTeamGoldLeaders();
 
             for (const p of playersRef.current) {
                 let img = p.shark ? sharkImg : catImg;
@@ -109,7 +130,12 @@ export default function Host() {
                     const py = p.y * WORLD_SCALE;
     
                     console.log(`[HOST LOG] Drawing player ${p.name} at (${p.x.toFixed(1)}, ${p.y.toFixed(1)}) with gold: ${p.gold}`);
-    
+
+                    // Highlight the team's top-gold player with the MVP sprite
+                    const isGoldLeader = p.gold > 0 && (p.shark ? p === sharkLeader : p === catLeader);
+                    if (isGoldLeader) {
+                        img = p.shark ? mvpSharkImg : mvpCatImg;
+                    }
     
                     if (p.shield) {
                         img = shieldImg;
@@ -176,7 +202,6 @@ export default function Host() {
             drawAttackFX();
             drawPlayers();
 
-            // gold scores in top left and top right from WORLD 
             ctx.fillStyle = "#ffffff";
             ctx.font = "bold 18px system-ui, sans-serif";
             ctx.textAlign = "left";
