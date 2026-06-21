@@ -36,12 +36,11 @@ const STATUS_WIDTH = 260;
 
 // Phone Game Settings
 const SHIELD_BETA_THRESHOLD = 60;
-const SHIELD_DURATION = 3000;
-const SHIELD_COOLDOWN_TIME = 1000;
-const SHIELD_MOVE_SPEED_MULTIPLIER = 0.2; // movement speed while shield is up
+const SHIELD_DURATION = 1500;
+const SHIELD_COOLDOWN_TIME = 2500;
 
 const ATTACK_THRESHOLD = 7;
-const ATTACK_COOLDOWN_TIME = 300;
+const ATTACK_COOLDOWN_TIME = 500;
 const GYRO_POLL_MS = 50;
 
 const MOTION_DETECTION_TIMEOUT_MS = 1500;
@@ -61,7 +60,6 @@ function ActionImageButtons({
     onShield: () => void;
 }) {
     const attackDisabled = attackCooldown || shieldActive;
-    // Shield button stays tappable while active so the player can cancel it early.
     const shieldDisabled = !shieldActive && shieldCooldown;
 
     return (
@@ -340,8 +338,7 @@ export default function Controller() {
 
         const interval = setInterval(() => {
             const { dx, dy } = sendRef.current;
-            const speedMultiplier = shieldActiveRef.current ? SHIELD_MOVE_SPEED_MULTIPLIER : 1;
-            channelRef.current?.emit("input", { dx: dx * speedMultiplier, dy: dy * speedMultiplier });
+            channelRef.current?.emit("input", { dx: dx, dy: dy });
         }, 50); // 20 updates/sec
 
         return () => clearInterval(interval);
