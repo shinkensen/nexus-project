@@ -431,7 +431,7 @@ export default function Controller() {
                 style={{
                     height: "100vh",
                     overflow: "hidden",
-                    backgroundColor: "#20b14c",
+                    backgroundColor: isMobile ? "#20b14c" : "#000",
                     backgroundImage: isMobile ? `url(${backgroundImage.src})` : "none",
                     backgroundSize: isMobile ? "contain" : "auto",
                     backgroundPosition: "center center",
