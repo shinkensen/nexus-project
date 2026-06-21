@@ -125,9 +125,9 @@ export default function Host() {
     
                     if (p.gold > 0) {
                         ctx.fillStyle = "#ffd700";
-                        ctx.font = "bold 12px system-ui, sans-serif";
+                        ctx.font = "bold 20px system-ui, sans-serif";
                         ctx.textAlign = "center";
-                        ctx.fillText(`Gold: ${p.gold}`, px, py + SPRITE_SIZE / 2 + 16);
+                        ctx.fillText(p.gold, px, py + SPRITE_SIZE / 2 + 16);
                     }
                 }
                 
