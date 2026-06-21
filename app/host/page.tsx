@@ -13,7 +13,6 @@ export default function Host() {
     const playersRef = useRef<any[]>([]);
     const fxRef = useRef<any[]>([]);
 
-    // ── geckos.io connection ──────────────────────────────────────────────────
     useEffect(() => {
         let channel: any = null;
 
@@ -59,7 +58,6 @@ export default function Host() {
         };
     }, []);
 
-    // ── Render loop ───────────────────────────────────────────────────────────
     useEffect(() => {
         const canvas = canvasRef.current!;
         const ctx = canvas.getContext("2d")!;
@@ -71,6 +69,8 @@ export default function Host() {
         sharkImg.src = "/assets/sprites/shark-removebg-preview.png";
         const shieldImg = new Image();
         shieldImg.src = "/assets/objects/box-removebg-preview.png";
+        const fireIMG = new Image();
+        fireIMG.src = "/assets/objects/fire-removebg-preview.png";
 
         function resize() {
             canvas.width = window.innerWidth;
@@ -93,35 +93,39 @@ export default function Host() {
             const SPRITE_SIZE = 90;
 
             for (const p of playersRef.current) {
-                if (!p.alive) continue;
-
-                const px = p.x * WORLD_SCALE;
-                const py = p.y * WORLD_SCALE;
-
-                console.log(`[HOST LOG] Drawing player ${p.name} at (${p.x.toFixed(1)}, ${p.y.toFixed(1)}) with gold: ${p.gold}`);
-
-                // Draw sprite (cat or shark)
                 let img = p.shark ? sharkImg : catImg;
+                if (!p.alive){
 
-                if (p.shield) {
-                    img = shieldImg;
+                    img = fireIMG;
+
                 }
-
-                ctx.drawImage(img, px - SPRITE_SIZE / 2, py - SPRITE_SIZE / 2, SPRITE_SIZE, SPRITE_SIZE);
-
-                // Player name
-                ctx.fillStyle = "#ffffff";
-                ctx.font = "bold 14px system-ui, sans-serif";
-                ctx.textAlign = "center";
-                ctx.fillText(p.name || "Anonymous", px, py - SPRITE_SIZE / 2 - 6);
-
-                // player gold count IF greater than 0
-                if (p.gold > 0) {
-                    ctx.fillStyle = "#ffd700";
-                    ctx.font = "bold 12px system-ui, sans-serif";
+                else{
+                    const px = p.x * WORLD_SCALE;
+                    const py = p.y * WORLD_SCALE;
+    
+                    console.log(`[HOST LOG] Drawing player ${p.name} at (${p.x.toFixed(1)}, ${p.y.toFixed(1)}) with gold: ${p.gold}`);
+    
+    
+                    if (p.shield) {
+                        img = shieldImg;
+                    }
+    
+                    ctx.drawImage(img, px - SPRITE_SIZE / 2, py - SPRITE_SIZE / 2, SPRITE_SIZE, SPRITE_SIZE);
+    
+                    // Player name
+                    ctx.fillStyle = "#ffffff";
+                    ctx.font = "bold 14px system-ui, sans-serif";
                     ctx.textAlign = "center";
-                    ctx.fillText(`Gold: ${p.gold}`, px, py + SPRITE_SIZE / 2 + 16);
+                    ctx.fillText(p.name || "Anonymous", px, py - SPRITE_SIZE / 2 - 6);
+    
+                    if (p.gold > 0) {
+                        ctx.fillStyle = "#ffd700";
+                        ctx.font = "bold 12px system-ui, sans-serif";
+                        ctx.textAlign = "center";
+                        ctx.fillText(`Gold: ${p.gold}`, px, py + SPRITE_SIZE / 2 + 16);
+                    }
                 }
+                
 
             }
         }
