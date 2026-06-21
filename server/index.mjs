@@ -118,23 +118,8 @@ io.onConnection((channel) => {
 
   channel.on("attack", (data) => {
     const p = WORLD.players.get(channel.id);
-    if (!p) return;
-
-    const attack = {
-      id: crypto.randomUUID?.() ?? Math.random().toString(36).slice(2),
-      attackerId: channel.id,
-      x: p.x,
-      y: p.y,
-      // angle: data.angle, // radians
-      angle: 0,
-      timestamp: Date.now(),
-    };
-
-    WORLD.attacks.set(attack.id, attack);
-    console.log(`[SERVER LOG] Attack registered from player: ${p.name}`);
-
-    // broadcast instantly
-    io.emit("attack", attack);
+    if (!p || !p.alive) return;
+    p.attackRequested = true;
   });
 
   channel.on("shield", (data) => {
