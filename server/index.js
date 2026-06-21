@@ -34,7 +34,7 @@ const SPEED = 3000;
 const ATTACK_RANGE = 400000;
 const ATTACK_ANGLE = Math.PI / 6;
 const RESPAWN_TIME = 3;
-const WORLD_W = 15000;
+const WORLD_W = 17000;
 const WORLD_H = 8000;
 
 // ─── World state ──────────────────────────────────────────────────────────────
@@ -162,11 +162,11 @@ setInterval(() => {
 
     if (!p.shark && p.x < 2500) {
       p.gold += 1;
-    } else if (p.shark && p.x > 11250) {
+    } else if (p.shark && p.x > 13000) {
       p.gold += 1;
     }
 
-    if (!p.shark && p.x > 11250) {
+    if (!p.shark && p.x > 13000) {
       WORLD.teams.cat.gold += p.gold;
       p.gold = 0;
     } else if (p.shark && p.x < 2500) {
@@ -211,6 +211,7 @@ setInterval(() => {
 
   io.emit("state", {
     players: Array.from(WORLD.players.values()),
+    teams: WORLD.teams,
   });
 }, 1000 / TICK_RATE);
 
