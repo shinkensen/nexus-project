@@ -67,14 +67,11 @@ function createPlayer(id, name) {
   WORLD.teams.shark.gold += 200;
   WORLD.teams.cat.gold += 200;
 
-  ranX = (WORLD_W / 4 + (Math.random() - 0.5) * 2000) + ((WORLD_W * 3) / 4 + (Math.random() - 0.5) * 2000);
-  ranY = (WORLD_H / 4 + (Math.random() - 0.5) * 2000) + ((WORLD_H * 3) / 4 + (Math.random() - 0.5) * 2000);
-
   return {
     id,
     name,
-    x: ranX,
-    y: ranY,
+    x: (WORLD_W / 4 + (Math.random() - 0.5) * 2000) + ((WORLD_W * 3) / 4 + (Math.random() - 0.5) * 2000),
+    y: (WORLD_H / 4 + (Math.random() - 0.5) * 2000) + ((WORLD_H * 3) / 4 + (Math.random() - 0.5) * 2000),
     dx: 0,
     dy: 0,
     angle: 0,
