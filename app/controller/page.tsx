@@ -16,7 +16,6 @@ function clampJoystick(dx: number, dy: number, max: number) {
 const SHIELD_BETA_THRESHOLD = 60;
 const SHIELD_DURATION = 3000;
 const SHIELD_COOLDOWN_TIME = 1000;
-const SHIELD_MOVE_SPEED_MULTIPLIER = 0.4; // movement speed while shield is up
 
 const ATTACK_THRESHOLD = 7;
 const ATTACK_COOLDOWN_TIME = 300;
@@ -25,25 +24,23 @@ const GYRO_POLL_MS = 50;
 const MOTION_DETECTION_TIMEOUT_MS = 1500;
 
 
-// The instruction images double as the tap targets for attack/shield.
-// This covers players without motion controls, and also gives motion-control
-// players a manual fallback for the same actions.
-function ActionImageButtons({
+function ActionButtons({
+    channelRef,
     shieldActive,
-    shieldCooldown,
-    attackCooldown,
-    onAttack,
     onShield,
 }: {
+    channelRef: React.MutableRefObject<any>;
     shieldActive: boolean;
-    shieldCooldown: boolean;
-    attackCooldown: boolean;
-    onAttack: () => void;
     onShield: () => void;
 }) {
-    const attackDisabled = attackCooldown || shieldActive;
-    // Shield button stays tappable while active so the player can cancel it early.
-    const shieldDisabled = !shieldActive && shieldCooldown;
+    const [attackCooldown, setAttackCooldown] = useState(false);
+
+    const handleAttack = () => {
+        if (attackCooldown || shieldActive || !channelRef.current) return; // can't attack w/ shield on
+        channelRef.current.emit("attack");
+        setAttackCooldown(true);
+        setTimeout(() => setAttackCooldown(false), ATTACK_COOLDOWN_TIME);
+    };
 
     return (
         <div
@@ -59,62 +56,85 @@ function ActionImageButtons({
             }}
         >
             <button
-                onClick={onAttack}
-                disabled={attackDisabled}
-                aria-label="Attack"
+                onClick={handleAttack}
+                disabled={attackCooldown || shieldActive}
                 style={{
-                    padding: 0,
+                    padding: "14px 28px",
+                    borderRadius: "10px",
                     border: "none",
-                    background: "transparent",
-                    cursor: attackDisabled ? "not-allowed" : "pointer",
+                    background: attackCooldown || shieldActive ? "#333" : "#f44336",
+                    color: attackCooldown || shieldActive ? "#666" : "#fff",
+                    fontWeight: "bold",
+                    cursor: attackCooldown || shieldActive ? "not-allowed" : "pointer",
+                    opacity: attackCooldown || shieldActive ? 0.6 : 1,
+                    fontSize: "15px",
+                    minWidth: "120px",
                 }}
             >
-                <img
-                    src="/assets/ui/stab_ins.png"
-                    alt="push phone toward right direction"
-                    style={{
-                        width: 120,
-                        height: 120,
-                        borderRadius: "10px",
-                        objectFit: "contain",
-                        background: "rgba(255,255,255,0.05)",
-                        border: "1px solid rgba(255,255,255,0.15)",
-                        opacity: attackDisabled ? 0.35 : 1,
-                        filter: attackDisabled ? "grayscale(1)" : "none",
-                        transition: "opacity 0.15s, filter 0.15s",
-                    }}
-                />
+                {attackCooldown ? "ATTACK [CD]" : "ATTACK"}
             </button>
 
             <button
                 onClick={onShield}
-                disabled={shieldDisabled}
-                aria-label="Shield"
+                disabled={shieldActive}
                 style={{
-                    padding: 0,
+                    padding: "14px 28px",
+                    borderRadius: "10px",
                     border: "none",
-                    background: "transparent",
-                    cursor: shieldDisabled ? "not-allowed" : "pointer",
+                    background: shieldActive ? "#333" : "#00bcd4",
+                    color: shieldActive ? "#666" : "#fff",
+                    fontWeight: "bold",
+                    cursor: shieldActive ? "not-allowed" : "pointer",
+                    opacity: shieldActive ? 0.6 : 1,
+                    fontSize: "15px",
+                    minWidth: "120px",
                 }}
             >
-                <img
-                    src="/assets/ui/shield_ins.png"
-                    alt="SLAM to shield"
-                    style={{
-                        width: 120,
-                        height: 120,
-                        borderRadius: "10px",
-                        objectFit: "contain",
-                        background: shieldActive ? "rgba(0,188,212,0.18)" : "rgba(255,255,255,0.05)",
-                        border: shieldActive
-                            ? "1px solid rgba(0,188,212,0.8)"
-                            : "1px solid rgba(255,255,255,0.15)",
-                        opacity: shieldDisabled ? 0.35 : 1,
-                        filter: shieldDisabled ? "grayscale(1)" : "none",
-                        transition: "opacity 0.15s, filter 0.15s, background 0.15s, border 0.15s",
-                    }}
-                />
+                {shieldActive ? "SHIELD [ON]" : "SHIELD"}
             </button>
+        </div>
+    );
+}
+
+function MotionInstructionImages() {
+    return (
+        <div
+            style={{
+                position: "absolute",
+                bottom: 40,
+                left: 0,
+                right: 0,
+                display: "flex",
+                justifyContent: "center",
+                gap: "16px",
+                zIndex: 10,
+                pointerEvents: "none",
+            }}
+        >
+            <img
+                src="/assets/ui/stab_ins.png"
+                alt="push phone toward right direction"
+                style={{
+                    width: 120,
+                    height: 120,
+                    borderRadius: "10px",
+                    objectFit: "contain",
+                    background: "rgba(255,255,255,0.05)",
+                    border: "1px solid rgba(255,255,255,0.15)",
+                }}
+            />
+            <img
+                src="/assets/ui/shield_ins.png"
+                alt="SLAM to shield"
+                style={{
+                    width: 120,
+                    height: 120,
+                    borderRadius: "10px",
+                    objectFit: "contain",
+                    background: "rgba(255,255,255,0.05)",
+                    border: "1px solid rgba(255,255,255,0.15)",
+                }}
+            />
         </div>
     );
 }
@@ -125,10 +145,7 @@ export default function Controller() {
     const [joined, setJoined] = useState(false);
     const [statusMsg, setStatusMsg] = useState("");
     const [shieldActive, setShieldActive] = useState(false);
-    const [shieldCooldown, setShieldCooldown] = useState(false);
-    const [attackCooldown, setAttackCooldown] = useState(false);
     const channelRef = useRef<any>(null);
-    const shieldActiveRef = useRef(false);
 
     const [motionAvailable, setMotionAvailable] = useState<boolean | null>(null);
 
@@ -185,29 +202,11 @@ export default function Controller() {
     });
 
     const shieldTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const shieldCooldownRef = useRef(false);
-    const shieldCooldownTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const attackCooldownRef = useRef(false);
-
-    useEffect(() => {
-        shieldActiveRef.current = shieldActive;
-    }, [shieldActive]);
-
-    function startShieldCooldown() {
-        shieldCooldownRef.current = true;
-        setShieldCooldown(true);
-
-        shieldCooldownTimeoutRef.current = setTimeout(() => {
-            shieldCooldownRef.current = false;
-            setShieldCooldown(false);
-            shieldCooldownTimeoutRef.current = null;
-        }, SHIELD_COOLDOWN_TIME);
-    }
 
     function triggerShield() {
         if (!channelRef.current) return;
         if (shieldTimeoutRef.current) return;
-        if (shieldCooldownRef.current) return;
 
         channelRef.current.emit("shield", { shield: true });
         setShieldActive(true);
@@ -216,7 +215,6 @@ export default function Controller() {
             channelRef.current?.emit("shield", { shield: false });
             setShieldActive(false);
             shieldTimeoutRef.current = null;
-            startShieldCooldown();
         }, SHIELD_DURATION);
     }
 
@@ -228,7 +226,6 @@ export default function Controller() {
             }
             channelRef.current?.emit("shield", { shield: false });
             setShieldActive(false);
-            startShieldCooldown();
         } else {
             triggerShield();
         }
@@ -241,11 +238,9 @@ export default function Controller() {
 
         channelRef.current.emit("attack");
         attackCooldownRef.current = true;
-        setAttackCooldown(true);
 
         setTimeout(() => {
             attackCooldownRef.current = false;
-            setAttackCooldown(false);
         }, ATTACK_COOLDOWN_TIME);
     }
 
@@ -299,7 +294,6 @@ export default function Controller() {
     useEffect(() => {
         return () => {
             if (shieldTimeoutRef.current) clearTimeout(shieldTimeoutRef.current);
-            if (shieldCooldownTimeoutRef.current) clearTimeout(shieldCooldownTimeoutRef.current);
         };
     }, []);
 
@@ -310,9 +304,7 @@ export default function Controller() {
         if (!joined) return;
 
         const interval = setInterval(() => {
-            const { dx, dy } = sendRef.current;
-            const speedMultiplier = shieldActiveRef.current ? SHIELD_MOVE_SPEED_MULTIPLIER : 1;
-            channelRef.current?.emit("input", { dx: dx * speedMultiplier, dy: dy * speedMultiplier });
+            channelRef.current?.emit("input", sendRef.current);
         }, 50); // 20 updates/sec
 
         return () => clearInterval(interval);
@@ -500,15 +492,14 @@ export default function Controller() {
             }}
         >
 
-            {motionAvailable !== null && (
-                <ActionImageButtons
+            {motionAvailable === false && (
+                <ActionButtons
+                    channelRef={channelRef}
                     shieldActive={shieldActive}
-                    shieldCooldown={shieldCooldown}
-                    attackCooldown={attackCooldown}
-                    onAttack={triggerAttack}
                     onShield={handleManualShieldToggle}
                 />
             )}
+            {motionAvailable === true && <MotionInstructionImages />}
 
             <div
                 style={{
