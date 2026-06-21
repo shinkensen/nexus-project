@@ -14,7 +14,9 @@ export default function Host() {
       playersRef.current = state.players;
     });
 
-    return () => socket.disconnect();
+    return () => {
+      socket.disconnect();
+    };
   }, []);
 
   useEffect(() => {

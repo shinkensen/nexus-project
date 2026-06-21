@@ -7,14 +7,6 @@ export default function Controller() {
     const socketRef = useRef<any>(null);
     const [knob, setKnob] = useState({ x: 0, y: 0 });
 
-    // Cooldown states for UI indicators
-    const [shieldCooldown, setShieldCooldown] = useState(false);
-    const [attackCooldown, setAttackCooldown] = useState(false);
-
-    // Cooldown configurations (in milliseconds)
-    const SHIELD_COOLDOWN_TIME = 1000;
-    const ATTACK_COOLDOWN_TIME = 300;
-
     const joystickRef = useRef({
         active: false,
         pointerId: -1,
@@ -24,21 +16,15 @@ export default function Controller() {
         y: 0,
     });
 
-    // Added placeholders for action states
-    const sendRef = useRef({ 
-        dx: 0, 
-        dy: 0,
-        shield: false,
-        attack: false 
-    });
+    const sendRef = useRef({ dx: 0, dy: 0 });
 
     useEffect(() => {
         const socket = io("http://localhost:3001");
         socketRef.current = socket;
 
+        // Joystick interval stream
         const interval = setInterval(() => {
             socket.emit("input", sendRef.current);
-            
         }, 50); // 20 updates/sec
 
         return () => {
@@ -46,33 +32,6 @@ export default function Controller() {
             socket.disconnect();
         };
     }, []);
-
-    // --- Action Handlers ---
-    const handleShieldClick = () => {
-        if (shieldCooldown) return;
-
-        sendRef.current.shield = true;
-        console.log("Shield triggered");
-
-        setShieldCooldown(true);
-        setTimeout(() => {
-            setShieldCooldown(false);
-
-            sendRef.current.shield = false; 
-        }, SHIELD_COOLDOWN_TIME);
-    };
-
-    const handleAttackClick = () => {
-        if (attackCooldown) return;
-
-        sendRef.current.attack = true;
-
-        setAttackCooldown(true);
-        setTimeout(() => {
-            setAttackCooldown(false);
-            sendRef.current.attack = false;
-        }, ATTACK_COOLDOWN_TIME);
-    };
 
     // --- Joystick Helpers ---
     function clampJoystick(dx: number, dy: number, max: number) {
@@ -84,7 +43,7 @@ export default function Controller() {
     }
 
     function onPointerDown(e: React.PointerEvent) {
-        // Prevent registering joystick movement if clicking a button
+        // Stop joystick logic if clicking on any button inside the test overlay
         if ((e.target as HTMLElement).closest('button')) return;
 
         joystickRef.current.active = true;
@@ -109,29 +68,20 @@ export default function Controller() {
         const MAX = 80;
         const clamped = clampJoystick(dx, dy, MAX);
 
-        setKnob({
-            x: clamped.dx,
-            y: clamped.dy,
-        });
+        setKnob({ x: clamped.dx, y: clamped.dy });
 
-        sendRef.current = {
-            ...sendRef.current,
-            dx: clamped.dx / MAX,
-            dy: clamped.dy / MAX,
-        };
+        sendRef.current.dx = clamped.dx / MAX;
+        sendRef.current.dy = clamped.dy / MAX;
     }
 
     function onPointerUp(e: React.PointerEvent) {
         if (e.pointerId !== joystickRef.current.pointerId) return;
 
         joystickRef.current.active = false;
-
         setKnob({ x: 0, y: 0 });
-        sendRef.current = { 
-            ...sendRef.current,
-            dx: 0, 
-            dy: 0 
-        };
+        
+        sendRef.current.dx = 0;
+        sendRef.current.dy = 0;
     }
 
     return (
@@ -151,92 +101,133 @@ export default function Controller() {
         >
             <p style={{ color: "white", padding: 20 }}>Joystick Controller</p>
 
-            {/* Controls Container (Houses buttons stacked cleanly over the joystick) */}
+            {/* ======================================================== */}
+            {/* 1. REMOVE LATER: TEST BUTTON OVERLAY                     */}
+            {/* ======================================================== */}
+            <TestActionButtons socketRef={socketRef} />
+            {/* ======================================================== */}
+
+            {/* Joystick Base Container */}
             <div
                 style={{
                     position: "absolute",
                     bottom: 60,
                     left: 60,
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    gap: "20px"
+                    width: 140,
+                    height: 140,
                 }}
             >
-                {/* Action Buttons Zone */}
-                <div style={{ display: "flex", flexDirection: "column", gap: "10px", width: "140px" }}>
-                    <button
-                        onClick={handleShieldClick}
-                        disabled={shieldCooldown}
-                        style={{
-                            padding: "12px",
-                            borderRadius: "8px",
-                            border: "none",
-                            background: shieldCooldown ? "#333" : "#00bcd4",
-                            color: shieldCooldown ? "#666" : "#fff",
-                            fontWeight: "bold",
-                            cursor: shieldCooldown ? "not-allowed" : "pointer",
-                            transition: "background 0.2s",
-                            opacity: shieldCooldown ? 0.6 : 1,
-                        }}
-                    >
-                        {shieldCooldown ? "SHIELD [CD]" : "SHIELD"}
-                    </button>
-
-                    <button
-                        onClick={handleAttackClick}
-                        disabled={attackCooldown}
-                        style={{
-                            padding: "12px",
-                            borderRadius: "8px",
-                            border: "none",
-                            background: attackCooldown ? "#333" : "#f44336",
-                            color: attackCooldown ? "#666" : "#fff",
-                            fontWeight: "bold",
-                            cursor: attackCooldown ? "not-allowed" : "pointer",
-                            transition: "background 0.2s",
-                            opacity: attackCooldown ? 0.6 : 1,
-                        }}
-                    >
-                        {attackCooldown ? "ATTACK [CD]" : "ATTACK"}
-                    </button>
-                </div>
-
-                {/* Joystick Wrapper */}
                 <div
                     style={{
-                        width: 140,
-                        height: 140,
-                        position: "relative"
+                        position: "absolute",
+                        inset: 0,
+                        borderRadius: "50%",
+                        background: "rgba(255,255,255,0.08)",
+                        border: "2px solid rgba(255,255,255,0.2)",
                     }}
-                >
-                    {/* Base */}
-                    <div
-                        style={{
-                            position: "absolute",
-                            inset: 0,
-                            borderRadius: "50%",
-                            background: "rgba(255,255,255,0.08)",
-                            border: "2px solid rgba(255,255,255,0.2)",
-                        }}
-                    />
+                />
 
-                    {/* Knob */}
-                    <div
-                        style={{
-                            position: "absolute",
-                            left: 70 + knob.x,
-                            top: 70 + knob.y,
-                            width: 60,
-                            height: 60,
-                            borderRadius: "50%",
-                            background: "white",
-                            transform: "translate(-50%, -50%)",
-                            transition: joystickRef.current.active ? "none" : "0.15s",
-                        }}
-                    />
-                </div>
+                <div
+                    style={{
+                        position: "absolute",
+                        left: 70 + knob.x,
+                        top: 70 + knob.y,
+                        width: 60,
+                        height: 60,
+                        borderRadius: "50%",
+                        background: "white",
+                        transform: "translate(-50%, -50%)",
+                        transition: joystickRef.current.active ? "none" : "0.15s",
+                    }}
+                />
             </div>
+        </div>
+    );
+}
+
+/**
+ * ============================================================================
+ * TEST TOOLS COMPONENT (Safely delete this whole component when done testing)
+ * ============================================================================
+ */
+function TestActionButtons({ socketRef }: { socketRef: React.MutableRefObject<any> }) {
+    const [shieldActive, setShieldActive] = useState(false);
+    const [attackCooldown, setAttackCooldown] = useState(false);
+
+    const SHIELD_DURATION = 3000; // Shield stays up for 3 seconds
+    const ATTACK_COOLDOWN_TIME = 300;
+
+    const handleShield = () => {
+        if (shieldActive || !socketRef.current) return;
+        
+        // Turn shield ON
+        socketRef.current.emit("shield", true);
+        setShieldActive(true);
+
+        // Turn shield OFF after 3 seconds
+        setTimeout(() => {
+            socketRef.current?.emit("shield", false);
+            setShieldActive(false);
+        }, SHIELD_DURATION);
+    };
+
+    const handleAttack = () => {
+        if (attackCooldown || !socketRef.current) return;
+
+        socketRef.current.emit("attack");
+        setAttackCooldown(true);
+
+        setTimeout(() => {
+            setAttackCooldown(false);
+        }, ATTACK_COOLDOWN_TIME);
+    };
+
+    return (
+        <div 
+            style={{ 
+                position: "absolute", 
+                bottom: 220, 
+                left: 60, 
+                display: "flex", 
+                flexDirection: "column", 
+                gap: "10px", 
+                width: "140px",
+                zIndex: 10
+            }}
+        >
+            <button
+                onClick={handleShield}
+                disabled={shieldActive}
+                style={{
+                    padding: "12px",
+                    borderRadius: "8px",
+                    border: "none",
+                    background: shieldActive ? "#333" : "#00bcd4",
+                    color: shieldActive ? "#888" : "#fff",
+                    fontWeight: "bold",
+                    cursor: shieldActive ? "not-allowed" : "pointer",
+                    opacity: shieldActive ? 0.6 : 1,
+                }}
+            >
+                {shieldActive ? "SHIELD ACTIVE" : "SHIELD"}
+            </button>
+
+            <button
+                onClick={handleAttack}
+                disabled={attackCooldown}
+                style={{
+                    padding: "12px",
+                    borderRadius: "8px",
+                    border: "none",
+                    background: attackCooldown ? "#333" : "#f44336",
+                    color: attackCooldown ? "#666" : "#fff",
+                    fontWeight: "bold",
+                    cursor: attackCooldown ? "not-allowed" : "pointer",
+                    opacity: attackCooldown ? 0.6 : 1,
+                }}
+            >
+                {attackCooldown ? "ATTACK [CD]" : "ATTACK"}
+            </button>
         </div>
     );
 }
