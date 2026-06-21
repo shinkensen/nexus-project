@@ -144,7 +144,35 @@ io.onConnection((channel) => {
 
   channel.onDisconnect(() => {
     console.log(`[SERVER LOG] Channel disconnected. ID: ${channel.id}`);
+
+    const p = WORLD.players.get(channel.id);
+
+    if (p) {
+      // return carried gold to the opposing team bank
+      if (p.shark) {
+        WORLD.teams.cat.gold += p.gold;
+      } else {
+        WORLD.teams.shark.gold += p.gold;
+      }
+    }
+
     WORLD.players.delete(channel.id);
+
+    // scale both teams down proportionally to remaining player capacity
+    const MAX_PER_PLAYER = 400;
+    const remainingPlayers = Math.max(WORLD.players.size, 1);
+
+    const oldMax = (remainingPlayers + 1) * MAX_PER_PLAYER;
+    const newMax = remainingPlayers * MAX_PER_PLAYER;
+
+    WORLD.teams.shark.gold = Math.round(
+      (WORLD.teams.shark.gold / oldMax) * newMax
+    );
+
+    WORLD.teams.cat.gold = Math.round(
+      (WORLD.teams.cat.gold / oldMax) * newMax
+    );
+
     console.log(`[SERVER LOG] Active Players count: ${WORLD.players.size}`);
   });
 });
