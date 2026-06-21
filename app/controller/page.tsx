@@ -25,9 +25,6 @@ const GYRO_POLL_MS = 50;
 const MOTION_DETECTION_TIMEOUT_MS = 1500;
 
 
-// The instruction images double as the tap targets for attack/shield.
-// This covers players without motion controls, and also gives motion-control
-// players a manual fallback for the same actions.
 function ActionImageButtons({
     shieldActive,
     shieldCooldown,
