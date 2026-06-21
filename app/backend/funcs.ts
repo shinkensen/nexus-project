@@ -54,7 +54,6 @@ export async function addPlayer(name: string) {
     };
 }
 
-// TODO: SET TO NEW TABLE WITH TEAM GOLD
 export async function getTeamGold(shark: boolean) {
     const { data, error } = await supabase.from("teams").select("gold").eq("team", shark ? "sharks" : "cats").single();
     if (error) {
