@@ -117,7 +117,8 @@ export default function Game({
 
       touchInput.x = e.clientX;
       touchInput.y = e.clientY;
-    }
+    }/*s*/
+
 
     function startTouchInput(e: PointerEvent) {
       if (e.pointerType !== "touch" || touchInput.active) {
